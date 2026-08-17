@@ -11,7 +11,16 @@
 
 # next.js
 /.next/
+/.next-*/
 /out/
+
+# pwa (generado en build)
+/public/sw.js
+/public/sw.js.map
+/public/workbox-*.js
+/public/workbox-*.js.map
+/public/worker-*.js
+/public/worker-*.js.map
 
 # production
 /build
@@ -26,10 +35,16 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+.env
 .env*.local
 
 # vercel
 .vercel
+
+# claude code local settings -- contiene historial de permisos con
+# comandos que a veces incluyen credenciales pasadas por env var en
+# la sesion (nunca debe subirse al repo)
+.claude/
 
 # typescript
 *.tsbuildinfo
