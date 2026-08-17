@@ -163,9 +163,13 @@ export default function PlataformaClient({
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-10">
       <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Clonclokify Plataforma</h1>
-          <p className="text-sm text-gray-500">{nombre}</p>
+        <div className="flex items-center gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icons/icon-192.png" alt="Chronos" className="h-8 w-8 rounded" />
+          <div>
+            <h1 className="text-lg font-semibold">Chronos Plataforma</h1>
+            <p className="text-sm text-gray-500">{nombre}</p>
+          </div>
         </div>
         <button
           onClick={() => signOut({ callbackUrl: "/plataforma/login" })}

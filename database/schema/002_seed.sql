@@ -1,5 +1,5 @@
 -- =====================================================================
--- Clonclokify - Seed inicial de catalogo (tabla maestro) y usuario Admin
+-- Chronos - Seed inicial de catalogo (tabla maestro) y usuario Admin
 -- =====================================================================
 
 USE trackerTime;

@@ -1,5 +1,5 @@
 -- =====================================================================
--- Clonclokify - Esquema de base de datos (MySQL 8)
+-- Chronos - Esquema de base de datos (MySQL 8)
 -- Convenciones:
 --   * Toda la logica de negocio vive en Stored Procedures (database/procedures).
 --   * Todas las tablas tienen columnas de auditoria estandar.

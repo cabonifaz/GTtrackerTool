@@ -15,7 +15,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Clonclokify",
+  title: "Chronos",
   description: "Control de tiempo por tarea para equipos",
   manifest: "/manifest.json",
   icons: {

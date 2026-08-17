@@ -1,6 +1,6 @@
 {
-  "name": "Clonclokify",
-  "short_name": "Clonclokify",
+  "name": "Chronos",
+  "short_name": "Chronos",
   "description": "Control de tiempo por tarea para equipos",
   "start_url": "/cronometro",
   "scope": "/",

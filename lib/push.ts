@@ -33,7 +33,7 @@ function asegurarVapidConfigurado() {
   }
 
   webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT ?? "mailto:soporte@clonclokify.local",
+    process.env.VAPID_SUBJECT ?? "mailto:soporte@chronos.local",
     publicKey,
     privateKey
   );

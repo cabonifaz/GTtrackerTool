@@ -9,11 +9,11 @@ self.addEventListener("push", (event) => {
   try {
     payload = event.data.json();
   } catch {
-    payload = { title: "Clonclokify", body: event.data.text() };
+    payload = { title: "Chronos", body: event.data.text() };
   }
 
   event.waitUntil(
-    self.registration.showNotification(payload.title || "Clonclokify", {
+    self.registration.showNotification(payload.title || "Chronos", {
       body: payload.body || "",
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",

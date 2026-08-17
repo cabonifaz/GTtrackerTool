@@ -39,8 +39,10 @@ export default function PlataformaLoginPage() {
         onSubmit={handleSubmit}
         className="w-full max-w-sm bg-white rounded-xl shadow-sm border border-gray-200 p-8 space-y-5"
       >
-        <div>
-          <h1 className="text-xl font-semibold">Clonclokify Plataforma</h1>
+        <div className="space-y-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icons/icon-192.png" alt="Chronos" className="h-10 w-10 rounded" />
+          <h1 className="text-xl font-semibold">Chronos Plataforma</h1>
           <p className="text-sm text-gray-500">Acceso de Super Admin</p>
         </div>
 

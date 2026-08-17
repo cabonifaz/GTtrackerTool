@@ -5,7 +5,7 @@
 // offline. Solo guarda UN registro fijo ("activo"), ya que la regla de
 // negocio ya impone un solo cronometro en curso por usuario.
 
-const DB_NAME = "clonclokify-offline";
+const DB_NAME = "chronos-offline";
 const DB_VERSION = 1;
 const STORE = "cronometro";
 const CLAVE_ACTIVA = "activo";
