@@ -20,7 +20,8 @@ export async function POST(req: NextRequest) {
       fechaFin,
       descripcion ?? null,
       session.user.email ?? "",
-      session.user.rol
+      session.user.rol,
+      session.user.idEmpresa!
     );
     return NextResponse.json(result[0], { status: 201 });
   } catch (err) {

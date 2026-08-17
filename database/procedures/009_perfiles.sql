@@ -9,16 +9,19 @@ DELIMITER $$
 
 DROP PROCEDURE IF EXISTS sp_perfil_crear $$
 CREATE PROCEDURE sp_perfil_crear(
-  IN p_id_cliente INT UNSIGNED,
-  IN p_nombre     VARCHAR(150),
-  IN p_tarifa     DECIMAL(10,2),
-  IN p_id_moneda  INT UNSIGNED,
-  IN p_creado_por VARCHAR(150)
+  IN p_id_cliente       INT UNSIGNED,
+  IN p_nombre           VARCHAR(150),
+  IN p_tarifa           DECIMAL(10,2),
+  IN p_id_moneda        INT UNSIGNED,
+  IN p_id_empresa_actor INT UNSIGNED,
+  IN p_creado_por       VARCHAR(150)
 )
 BEGIN
   DECLARE v_id_perfil INT UNSIGNED;
 
-  IF NOT EXISTS (SELECT 1 FROM clientes WHERE id_cliente = p_id_cliente AND activo = 1) THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM clientes WHERE id_cliente = p_id_cliente AND activo = 1 AND id_empresa = p_id_empresa_actor
+  ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cliente invalido o inactivo';
   END IF;
 
@@ -57,16 +60,21 @@ END $$
 -- se habia cambiado hoy mismo, actualiza esa fila en vez de duplicar).
 DROP PROCEDURE IF EXISTS sp_perfil_editar_tarifa $$
 CREATE PROCEDURE sp_perfil_editar_tarifa(
-  IN p_id_perfil      INT UNSIGNED,
-  IN p_tarifa         DECIMAL(10,2),
-  IN p_id_moneda      INT UNSIGNED,
-  IN p_modificado_por VARCHAR(150)
+  IN p_id_perfil        INT UNSIGNED,
+  IN p_tarifa           DECIMAL(10,2),
+  IN p_id_moneda        INT UNSIGNED,
+  IN p_id_empresa_actor INT UNSIGNED,
+  IN p_modificado_por   VARCHAR(150)
 )
 BEGIN
   DECLARE v_id_vigente INT UNSIGNED;
   DECLARE v_fecha_desde_vigente DATE;
 
-  IF NOT EXISTS (SELECT 1 FROM perfiles WHERE id_perfil = p_id_perfil AND activo = 1) THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM perfiles p
+    JOIN clientes c ON c.id_cliente = p.id_cliente
+    WHERE p.id_perfil = p_id_perfil AND p.activo = 1 AND c.id_empresa = p_id_empresa_actor
+  ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Perfil no encontrado o inactivo';
   END IF;
 
@@ -103,14 +111,18 @@ END $$
 
 DROP PROCEDURE IF EXISTS sp_perfil_editar_nombre $$
 CREATE PROCEDURE sp_perfil_editar_nombre(
-  IN p_id_perfil      INT UNSIGNED,
-  IN p_nombre         VARCHAR(150),
-  IN p_modificado_por VARCHAR(150)
+  IN p_id_perfil        INT UNSIGNED,
+  IN p_nombre           VARCHAR(150),
+  IN p_id_empresa_actor INT UNSIGNED,
+  IN p_modificado_por   VARCHAR(150)
 )
 BEGIN
   DECLARE v_id_cliente INT UNSIGNED;
 
-  SELECT id_cliente INTO v_id_cliente FROM perfiles WHERE id_perfil = p_id_perfil AND activo = 1;
+  SELECT p.id_cliente INTO v_id_cliente
+  FROM perfiles p
+  JOIN clientes c ON c.id_cliente = p.id_cliente
+  WHERE p.id_perfil = p_id_perfil AND p.activo = 1 AND c.id_empresa = p_id_empresa_actor;
 
   IF v_id_cliente IS NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Perfil no encontrado o inactivo';
@@ -134,11 +146,16 @@ END $$
 
 DROP PROCEDURE IF EXISTS sp_perfil_desactivar $$
 CREATE PROCEDURE sp_perfil_desactivar(
-  IN p_id_perfil      INT UNSIGNED,
-  IN p_modificado_por VARCHAR(150)
+  IN p_id_perfil        INT UNSIGNED,
+  IN p_id_empresa_actor INT UNSIGNED,
+  IN p_modificado_por   VARCHAR(150)
 )
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM perfiles WHERE id_perfil = p_id_perfil) THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM perfiles p
+    JOIN clientes c ON c.id_cliente = p.id_cliente
+    WHERE p.id_perfil = p_id_perfil AND c.id_empresa = p_id_empresa_actor
+  ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Perfil no encontrado';
   END IF;
 
@@ -150,7 +167,8 @@ END $$
 -- Perfiles activos de un cliente con su tarifa/moneda vigente.
 DROP PROCEDURE IF EXISTS sp_perfil_listar $$
 CREATE PROCEDURE sp_perfil_listar(
-  IN p_id_cliente INT UNSIGNED
+  IN p_id_cliente       INT UNSIGNED,
+  IN p_id_empresa_actor INT UNSIGNED
 )
 BEGIN
   SELECT p.id_perfil, p.id_cliente, c.nombre AS cliente, p.nombre,
@@ -161,6 +179,7 @@ BEGIN
   LEFT JOIN perfiles_tarifas pt ON pt.id_perfil = p.id_perfil AND pt.fecha_hasta IS NULL
   LEFT JOIN maestro mon ON mon.id_maestro = pt.id_moneda
   WHERE p.activo = 1
+    AND c.id_empresa = p_id_empresa_actor
     AND (p_id_cliente IS NULL OR p.id_cliente = p_id_cliente)
   ORDER BY c.nombre, p.nombre;
 END $$
@@ -168,14 +187,17 @@ END $$
 -- Historial completo de tarifas de un perfil (auditoria).
 DROP PROCEDURE IF EXISTS sp_perfil_historial_tarifas $$
 CREATE PROCEDURE sp_perfil_historial_tarifas(
-  IN p_id_perfil INT UNSIGNED
+  IN p_id_perfil        INT UNSIGNED,
+  IN p_id_empresa_actor INT UNSIGNED
 )
 BEGIN
   SELECT pt.id_perfil_tarifa, pt.tarifa, mon.codigo AS codigo_moneda, mon.valor AS moneda,
          pt.fecha_desde, pt.fecha_hasta
   FROM perfiles_tarifas pt
+  JOIN perfiles p ON p.id_perfil = pt.id_perfil
+  JOIN clientes c ON c.id_cliente = p.id_cliente
   JOIN maestro mon ON mon.id_maestro = pt.id_moneda
-  WHERE pt.id_perfil = p_id_perfil
+  WHERE pt.id_perfil = p_id_perfil AND c.id_empresa = p_id_empresa_actor
   ORDER BY pt.fecha_desde DESC;
 END $$
 

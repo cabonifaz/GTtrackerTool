@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const filas = await reporteCostosMensual(Number(idProyecto), Number(anio), Number(mes));
+    const filas = await reporteCostosMensual(Number(idProyecto), Number(anio), Number(mes), session.user.idEmpresa!);
     return NextResponse.json(filas);
   } catch (err) {
     return handleApiError(err);

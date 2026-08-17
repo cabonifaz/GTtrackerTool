@@ -20,6 +20,15 @@ export async function requireAdmin(): Promise<Session | NextResponse> {
   return session;
 }
 
+export async function requireSuperAdmin(): Promise<Session | NextResponse> {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
+  if (session.user.rol !== "SUPER_ADMIN") {
+    return NextResponse.json({ error: "Requiere rol Super Admin" }, { status: 403 });
+  }
+  return session;
+}
+
 export function handleApiError(err: unknown): NextResponse {
   if (err instanceof BusinessError) {
     return NextResponse.json({ error: err.message }, { status: 400 });

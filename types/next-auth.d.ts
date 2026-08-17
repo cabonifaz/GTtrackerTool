@@ -8,6 +8,10 @@ declare module "next-auth" {
       idUsuario: number;
       rol: CodigoRol;
       debeCambiarPassword: boolean;
+      idEmpresa: number | null;
+      empresaSlug: string | null;
+      empresaNombre: string | null;
+      empresaSuspendida: boolean;
       name?: string | null;
       email?: string | null;
     };
@@ -16,6 +20,10 @@ declare module "next-auth" {
   interface User {
     rol: CodigoRol;
     debeCambiarPassword: boolean;
+    idEmpresa: number | null;
+    empresaSlug: string | null;
+    empresaNombre: string | null;
+    empresaSuspendida: boolean;
   }
 }
 
@@ -24,5 +32,9 @@ declare module "next-auth/jwt" {
     idUsuario: number;
     rol: CodigoRol;
     debeCambiarPassword: boolean;
+    idEmpresa: number | null;
+    empresaSlug: string | null;
+    empresaNombre: string | null;
+    empresaSuspendida: boolean;
   }
 }

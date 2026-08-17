@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     .map(Number);
 
   try {
-    const detalle = await reporteHorasDetalle(idsUsuario, fechaInicio, fechaFin);
+    const detalle = await reporteHorasDetalle(idsUsuario, fechaInicio, fechaFin, auth.idEmpresa);
     return NextResponse.json(detalle);
   } catch (err) {
     return handleApiError(err);

@@ -13,6 +13,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       Number(idUsuario),
       Number(params.id),
       idPerfil ? Number(idPerfil) : null,
+      session.user.idEmpresa!,
       session.user.email ?? ""
     );
     return NextResponse.json({ ok: true });

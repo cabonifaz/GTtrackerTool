@@ -1,7 +1,8 @@
 -- =====================================================================
 -- Stored Procedures: reportes de horas
 -- Nota: p_ids_usuario recibe una lista de ids separados por coma
--- (ej. '1,2,5'); NULL o cadena vacia significa "todos los usuarios".
+-- (ej. '1,2,5'); NULL o cadena vacia significa "todos los usuarios de
+-- la empresa actora".
 -- =====================================================================
 USE trackerTime;
 
@@ -9,9 +10,10 @@ DELIMITER $$
 
 DROP PROCEDURE IF EXISTS sp_reporte_horas_detalle $$
 CREATE PROCEDURE sp_reporte_horas_detalle(
-  IN p_ids_usuario  VARCHAR(1000),
-  IN p_fecha_inicio DATE,
-  IN p_fecha_fin    DATE
+  IN p_ids_usuario     VARCHAR(1000),
+  IN p_fecha_inicio    DATE,
+  IN p_fecha_fin       DATE,
+  IN p_id_empresa_actor INT UNSIGNED
 )
 BEGIN
   SELECT
@@ -35,6 +37,7 @@ BEGIN
     AND rt.duracion_segundos IS NOT NULL
     AND rt.fecha_inicio >= p_fecha_inicio
     AND rt.fecha_inicio < DATE_ADD(p_fecha_fin, INTERVAL 1 DAY)
+    AND u.id_empresa = p_id_empresa_actor
     AND (p_ids_usuario IS NULL OR p_ids_usuario = '' OR FIND_IN_SET(rt.id_usuario, p_ids_usuario) > 0)
   ORDER BY u.nombres, u.apellidos, rt.fecha_inicio;
 END $$
@@ -68,9 +71,10 @@ END $$
 
 DROP PROCEDURE IF EXISTS sp_reporte_tiempo_por_tarea $$
 CREATE PROCEDURE sp_reporte_tiempo_por_tarea(
-  IN p_ids_usuario  VARCHAR(1000),
-  IN p_fecha_inicio DATE,
-  IN p_fecha_fin    DATE
+  IN p_ids_usuario      VARCHAR(1000),
+  IN p_fecha_inicio     DATE,
+  IN p_fecha_fin        DATE,
+  IN p_id_empresa_actor INT UNSIGNED
 )
 BEGIN
   SELECT
@@ -95,6 +99,7 @@ BEGIN
     AND rt.duracion_segundos IS NOT NULL
     AND rt.fecha_inicio >= p_fecha_inicio
     AND rt.fecha_inicio < DATE_ADD(p_fecha_fin, INTERVAL 1 DAY)
+    AND u.id_empresa = p_id_empresa_actor
     AND (p_ids_usuario IS NULL OR p_ids_usuario = '' OR FIND_IN_SET(rt.id_usuario, p_ids_usuario) > 0)
   GROUP BY t.id_tarea, u.nombres, u.apellidos, c.nombre, pr.nombre, t.nombre, e.valor
   ORDER BY duracion_segundos DESC;

@@ -2,10 +2,11 @@
 
 import { useState, FormEvent } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 
 export default function CambiarPasswordPage() {
   const router = useRouter();
+  const { empresa } = useParams<{ empresa: string }>();
   const { update } = useSession();
   const [nuevaPassword, setNuevaPassword] = useState("");
   const [confirmar, setConfirmar] = useState("");
@@ -38,7 +39,7 @@ export default function CambiarPasswordPage() {
     }
 
     await update({ debeCambiarPassword: false });
-    router.push("/cronometro");
+    router.push(`/${empresa}/cronometro`);
     router.refresh();
   }
 
@@ -101,7 +102,7 @@ export default function CambiarPasswordPage() {
 
         <button
           type="button"
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={() => signOut({ callbackUrl: `/${empresa}/login` })}
           className="w-full text-center text-xs text-gray-400 hover:text-gray-600"
         >
           Cerrar sesion

@@ -10,16 +10,21 @@ CREATE PROCEDURE sp_usuario_proyecto_asignar(
   IN p_id_usuario         INT UNSIGNED,
   IN p_id_proyecto        INT UNSIGNED,
   IN p_id_pais_calendario INT UNSIGNED,
+  IN p_id_empresa_actor   INT UNSIGNED,
   IN p_creado_por         VARCHAR(150)
 )
 BEGIN
   DECLARE v_tiene_predeterminado INT DEFAULT 0;
 
-  IF NOT EXISTS (SELECT 1 FROM usuarios WHERE id_usuario = p_id_usuario AND activo = 1) THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM usuarios WHERE id_usuario = p_id_usuario AND activo = 1 AND id_empresa = p_id_empresa_actor
+  ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Usuario invalido o inactivo';
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM proyectos WHERE id_proyecto = p_id_proyecto AND activo = 1) THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM proyectos WHERE id_proyecto = p_id_proyecto AND activo = 1 AND id_empresa = p_id_empresa_actor
+  ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Proyecto invalido o inactivo';
   END IF;
 
@@ -48,13 +53,23 @@ END $$
 
 DROP PROCEDURE IF EXISTS sp_usuario_proyecto_desasignar $$
 CREATE PROCEDURE sp_usuario_proyecto_desasignar(
-  IN p_id_usuario     INT UNSIGNED,
-  IN p_id_proyecto    INT UNSIGNED,
-  IN p_modificado_por VARCHAR(150)
+  IN p_id_usuario       INT UNSIGNED,
+  IN p_id_proyecto      INT UNSIGNED,
+  IN p_id_empresa_actor INT UNSIGNED,
+  IN p_modificado_por   VARCHAR(150)
 )
 BEGIN
   DECLARE v_era_predeterminado INT DEFAULT 0;
   DECLARE v_siguiente_id_proyecto INT UNSIGNED;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM usuarios_proyectos up
+    JOIN proyectos pr ON pr.id_proyecto = up.id_proyecto
+    WHERE up.id_usuario = p_id_usuario AND up.id_proyecto = p_id_proyecto
+      AND up.activo = 1 AND pr.id_empresa = p_id_empresa_actor
+  ) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ese proyecto no esta asignado a este usuario';
+  END IF;
 
   SELECT predeterminado INTO v_era_predeterminado
   FROM usuarios_proyectos
@@ -107,7 +122,8 @@ END $$
 -- debe recibir esta informacion.
 DROP PROCEDURE IF EXISTS sp_usuario_proyecto_listar_por_proyecto $$
 CREATE PROCEDURE sp_usuario_proyecto_listar_por_proyecto(
-  IN p_id_proyecto INT UNSIGNED
+  IN p_id_proyecto      INT UNSIGNED,
+  IN p_id_empresa_actor INT UNSIGNED
 )
 BEGIN
   SELECT u.id_usuario, u.nombres, u.apellidos, u.email,
@@ -116,6 +132,7 @@ BEGIN
          pt.tarifa, mon.codigo AS codigo_moneda, mon.valor AS moneda
   FROM usuarios_proyectos up
   JOIN usuarios u ON u.id_usuario = up.id_usuario
+  JOIN proyectos pr ON pr.id_proyecto = up.id_proyecto
   LEFT JOIN maestro m ON m.id_maestro = up.id_pais_calendario
   LEFT JOIN usuarios_proyectos_perfiles upp
          ON upp.id_usuario_proyecto = up.id_usuario_proyecto AND upp.fecha_hasta IS NULL
@@ -125,6 +142,7 @@ BEGIN
   WHERE up.id_proyecto = p_id_proyecto
     AND up.activo = 1
     AND u.activo = 1
+    AND pr.id_empresa = p_id_empresa_actor
   ORDER BY u.nombres, u.apellidos;
 END $$
 
@@ -174,10 +192,11 @@ END $$
 -- NULL quita el perfil asignado (deja al talento sin tarifa).
 DROP PROCEDURE IF EXISTS sp_usuario_proyecto_asignar_perfil $$
 CREATE PROCEDURE sp_usuario_proyecto_asignar_perfil(
-  IN p_id_usuario     INT UNSIGNED,
-  IN p_id_proyecto    INT UNSIGNED,
-  IN p_id_perfil      INT UNSIGNED,
-  IN p_modificado_por VARCHAR(150)
+  IN p_id_usuario       INT UNSIGNED,
+  IN p_id_proyecto      INT UNSIGNED,
+  IN p_id_perfil        INT UNSIGNED,
+  IN p_id_empresa_actor INT UNSIGNED,
+  IN p_modificado_por   VARCHAR(150)
 )
 BEGIN
   DECLARE v_id_usuario_proyecto INT UNSIGNED;
@@ -186,9 +205,11 @@ BEGIN
   DECLARE v_id_vigente INT UNSIGNED;
   DECLARE v_fecha_desde_vigente DATE;
 
-  SELECT id_usuario_proyecto INTO v_id_usuario_proyecto
-  FROM usuarios_proyectos
-  WHERE id_usuario = p_id_usuario AND id_proyecto = p_id_proyecto AND activo = 1;
+  SELECT up.id_usuario_proyecto INTO v_id_usuario_proyecto
+  FROM usuarios_proyectos up
+  JOIN proyectos pr ON pr.id_proyecto = up.id_proyecto
+  WHERE up.id_usuario = p_id_usuario AND up.id_proyecto = p_id_proyecto
+    AND up.activo = 1 AND pr.id_empresa = p_id_empresa_actor;
 
   IF v_id_usuario_proyecto IS NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ese proyecto no esta asignado a este usuario';
@@ -196,7 +217,10 @@ BEGIN
 
   IF p_id_perfil IS NOT NULL THEN
     SELECT id_cliente INTO v_id_cliente_proyecto FROM proyectos WHERE id_proyecto = p_id_proyecto;
-    SELECT id_cliente INTO v_id_cliente_perfil FROM perfiles WHERE id_perfil = p_id_perfil AND activo = 1;
+    SELECT p.id_cliente INTO v_id_cliente_perfil
+    FROM perfiles p
+    JOIN clientes c ON c.id_cliente = p.id_cliente
+    WHERE p.id_perfil = p_id_perfil AND p.activo = 1 AND c.id_empresa = p_id_empresa_actor;
 
     IF v_id_cliente_perfil IS NULL THEN
       SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Perfil invalido o inactivo';

@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
       : [session.user.idUsuario];
 
   try {
-    const detalle = await reporteHorasDetalle(idsUsuario, fechaInicio, fechaFin);
+    const detalle = await reporteHorasDetalle(idsUsuario, fechaInicio, fechaFin, session.user.idEmpresa!);
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Horas");

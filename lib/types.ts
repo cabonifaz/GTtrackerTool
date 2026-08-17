@@ -1,4 +1,16 @@
-export type CodigoRol = "ADMIN" | "TALENTO";
+export type CodigoRol = "SUPER_ADMIN" | "ADMIN" | "TALENTO";
+
+export interface Empresa {
+  id_empresa: number;
+  nombre: string;
+  slug: string;
+  tiene_logo: number;
+  color_primario: string;
+  color_secundario: string;
+  suspendida: number;
+  activo: number;
+  fecha_creacion: string;
+}
 
 export interface MaestroItem {
   id_maestro: number;
@@ -19,11 +31,16 @@ export interface Usuario {
   rol: string;
   activo: number;
   fecha_creacion: string;
+  id_empresa: number | null;
+  empresa: string | null;
+  empresa_slug: string | null;
 }
 
 export interface UsuarioConHash extends Usuario {
   password_hash: string;
   debe_cambiar_password: number;
+  empresa_nombre: string | null;
+  empresa_suspendida: number | null;
 }
 
 export interface UsuarioSistema {

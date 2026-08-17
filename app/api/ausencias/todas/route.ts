@@ -10,7 +10,11 @@ export async function GET(req: NextRequest) {
   const estado = req.nextUrl.searchParams.get("estado");
 
   try {
-    const ausencias = await listarAusenciasTodas(idUsuarioParam ? Number(idUsuarioParam) : null, estado);
+    const ausencias = await listarAusenciasTodas(
+      idUsuarioParam ? Number(idUsuarioParam) : null,
+      estado,
+      session.user.idEmpresa!
+    );
     return NextResponse.json(ausencias);
   } catch (err) {
     return handleApiError(err);

@@ -9,16 +9,28 @@ import SyncStatus from "@/components/SyncStatus";
 import PushToggle from "@/components/PushToggle";
 
 const links: { href: string; label: string; adminOnly?: boolean }[] = [
-  { href: "/cronometro", label: "Cronometro" },
-  { href: "/registros", label: "Mis Registros" },
-  { href: "/tareas", label: "Tareas" },
-  { href: "/reportes", label: "Reportes" },
-  { href: "/calendario", label: "Calendario" },
-  { href: "/dias-off", label: "Dias Off" },
-  { href: "/usuarios", label: "Usuarios", adminOnly: true },
+  { href: "cronometro", label: "Cronometro" },
+  { href: "registros", label: "Mis Registros" },
+  { href: "tareas", label: "Tareas" },
+  { href: "reportes", label: "Reportes" },
+  { href: "calendario", label: "Calendario" },
+  { href: "dias-off", label: "Dias Off" },
+  { href: "usuarios", label: "Usuarios", adminOnly: true },
 ];
 
-export default function NavBar({ nombre, rol }: { nombre: string; rol: CodigoRol }) {
+export default function NavBar({
+  nombre,
+  rol,
+  empresaSlug,
+  empresaNombre,
+  tieneLogo,
+}: {
+  nombre: string;
+  rol: CodigoRol;
+  empresaSlug: string;
+  empresaNombre: string;
+  tieneLogo: boolean;
+}) {
   const pathname = usePathname();
   const [menuAbierto, setMenuAbierto] = useState(false);
 
@@ -27,6 +39,11 @@ export default function NavBar({ nombre, rol }: { nombre: string; rol: CodigoRol
   }, [pathname]);
 
   const linksVisibles = links.filter((link) => !link.adminOnly || rol === "ADMIN");
+  const base = `/${empresaSlug}`;
+
+  function activo(href: string) {
+    return pathname.startsWith(`${base}/${href}`);
+  }
 
   return (
     <header className="border-b border-gray-200 bg-white">
@@ -48,27 +65,37 @@ export default function NavBar({ nombre, rol }: { nombre: string; rol: CodigoRol
           )}
         </button>
 
-        <nav className="hidden sm:flex items-center gap-1">
-          {linksVisibles.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium ${
-                pathname.startsWith(link.href)
-                  ? "bg-gray-900 text-white"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
+        <div className="hidden sm:flex items-center gap-3">
+          {tieneLogo ? (
+            // eslint-disable-next-line @next/next/no-img-element -- logo binario servido desde la DB, no un asset optimizable de next/image
+            <img src={`${base}/logo`} alt={empresaNombre} className="h-7 w-auto" />
+          ) : (
+            <span className="text-sm font-semibold text-gray-700">{empresaNombre}</span>
+          )}
+          <nav className="flex items-center gap-1">
+            {linksVisibles.map((link) => (
+              <Link
+                key={link.href}
+                href={`${base}/${link.href}`}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium ${
+                  activo(link.href) ? "text-white" : "text-gray-600 hover:bg-gray-100"
+                }`}
+                style={activo(link.href) ? { backgroundColor: "var(--color-primario)" } : undefined}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
 
         <div className="flex items-center gap-3 text-sm text-gray-600">
           <PushToggle />
           <SyncStatus />
           <span className="hidden sm:inline truncate max-w-[10rem]">{nombre}</span>
-          <button onClick={() => signOut({ callbackUrl: "/login" })} className="text-gray-500 hover:text-gray-900">
+          <button
+            onClick={() => signOut({ callbackUrl: `${base}/login` })}
+            className="text-gray-500 hover:text-gray-900"
+          >
             Salir
           </button>
         </div>
@@ -80,12 +107,11 @@ export default function NavBar({ nombre, rol }: { nombre: string; rol: CodigoRol
           {linksVisibles.map((link) => (
             <Link
               key={link.href}
-              href={link.href}
+              href={`${base}/${link.href}`}
               className={`px-3 py-2 rounded-md text-sm font-medium ${
-                pathname.startsWith(link.href)
-                  ? "bg-gray-900 text-white"
-                  : "text-gray-600 hover:bg-gray-100"
+                activo(link.href) ? "text-white" : "text-gray-600 hover:bg-gray-100"
               }`}
+              style={activo(link.href) ? { backgroundColor: "var(--color-primario)" } : undefined}
             >
               {link.label}
             </Link>

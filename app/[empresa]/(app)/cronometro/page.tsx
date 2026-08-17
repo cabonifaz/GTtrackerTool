@@ -11,10 +11,11 @@ export default async function CronometroPage() {
   const session = await getServerSession(authOptions);
   const idUsuario = session!.user.idUsuario;
   const rol = session!.user.rol;
+  const idEmpresa = session!.user.idEmpresa!;
 
   const [proyectos, tareas, activoServidor, ultimaTarea, misProyectos] = await Promise.all([
-    listarProyectos(idUsuario, rol),
-    listarTareas(null, idUsuario, rol),
+    listarProyectos(idUsuario, rol, idEmpresa),
+    listarTareas(null, idUsuario, rol, idEmpresa),
     obtenerCronometroActivo(idUsuario),
     obtenerUltimaTarea(idUsuario),
     listarMisProyectos(idUsuario),

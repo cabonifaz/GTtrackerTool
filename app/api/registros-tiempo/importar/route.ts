@@ -195,8 +195,8 @@ export async function POST(req: NextRequest) {
   }
 
   const [proyectosVisibles, tareasVisibles] = await Promise.all([
-    listarProyectos(session.user.idUsuario, session.user.rol),
-    listarTareas(null, session.user.idUsuario, session.user.rol),
+    listarProyectos(session.user.idUsuario, session.user.rol, session.user.idEmpresa!),
+    listarTareas(null, session.user.idUsuario, session.user.rol, session.user.idEmpresa!),
   ]);
 
   const proyectoPorNombre = new Map(proyectosVisibles.map((p) => [p.nombre.trim().toLowerCase(), p]));
@@ -245,7 +245,8 @@ export async function POST(req: NextRequest) {
         fechaFinResultado.valor,
         descripcion,
         session.user.email ?? "",
-        session.user.rol
+        session.user.rol,
+        session.user.idEmpresa!
       );
 
       if (!idTareaExistente) {

@@ -7,6 +7,7 @@ export function crearUsuario(
   email: string,
   passwordHash: string,
   codigoRol: CodigoRol,
+  idEmpresa: number | null,
   creadoPor: string
 ) {
   return executeProcedure<{ id_usuario: number }>("sp_usuario_crear", [
@@ -15,6 +16,7 @@ export function crearUsuario(
     email,
     passwordHash,
     codigoRol,
+    idEmpresa,
     creadoPor,
   ]);
 }
@@ -24,6 +26,7 @@ export function editarUsuario(
   nombres: string,
   apellidos: string,
   codigoRol: CodigoRol,
+  idEmpresaActor: number | null,
   modificadoPor: string
 ) {
   return executeProcedure("sp_usuario_editar", [
@@ -31,24 +34,29 @@ export function editarUsuario(
     nombres,
     apellidos,
     codigoRol,
+    idEmpresaActor,
     modificadoPor,
   ]);
 }
 
-export function activarUsuario(idUsuario: number, modificadoPor: string) {
-  return executeProcedure("sp_usuario_activar", [idUsuario, modificadoPor]);
+export function activarUsuario(idUsuario: number, idEmpresaActor: number | null, modificadoPor: string) {
+  return executeProcedure("sp_usuario_activar", [idUsuario, idEmpresaActor, modificadoPor]);
 }
 
-export function desactivarUsuario(idUsuario: number, modificadoPor: string) {
-  return executeProcedure("sp_usuario_desactivar", [idUsuario, modificadoPor]);
+export function desactivarUsuario(idUsuario: number, idEmpresaActor: number | null, modificadoPor: string) {
+  return executeProcedure("sp_usuario_desactivar", [idUsuario, idEmpresaActor, modificadoPor]);
 }
 
-export function listarUsuarios() {
-  return executeProcedure<Usuario>("sp_usuario_listar", []);
+export function listarUsuarios(idEmpresaActor: number | null) {
+  return executeProcedure<Usuario>("sp_usuario_listar", [idEmpresaActor]);
 }
 
 export function cambiarPassword(idUsuario: number, nuevoPasswordHash: string, modificadoPor: string) {
   return executeProcedure("sp_usuario_cambiar_password", [idUsuario, nuevoPasswordHash, modificadoPor]);
+}
+
+export function resetearPassword(idUsuario: number, nuevoPasswordHash: string, modificadoPor: string) {
+  return executeProcedure("sp_usuario_resetear_password", [idUsuario, nuevoPasswordHash, modificadoPor]);
 }
 
 export async function obtenerUsuarioPorEmail(email: string) {

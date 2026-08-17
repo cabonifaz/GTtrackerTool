@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
       : [session.user.idUsuario];
 
   try {
-    const filas = await reporteTiempoPorTarea(idsUsuario, fechaInicio, fechaFin);
+    const filas = await reporteTiempoPorTarea(idsUsuario, fechaInicio, fechaFin, session.user.idEmpresa!);
     return NextResponse.json(filas);
   } catch (err) {
     return handleApiError(err);

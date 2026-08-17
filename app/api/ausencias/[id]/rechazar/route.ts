@@ -9,7 +9,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const { motivoRechazo } = await req.json();
 
   try {
-    await rechazarAusencia(Number(params.id), motivoRechazo ?? null, session.user.email ?? "");
+    await rechazarAusencia(Number(params.id), motivoRechazo ?? null, session.user.idEmpresa!, session.user.email ?? "");
     return NextResponse.json({ ok: true });
   } catch (err) {
     return handleApiError(err);

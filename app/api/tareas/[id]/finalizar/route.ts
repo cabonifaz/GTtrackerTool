@@ -11,7 +11,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       Number(params.id),
       session.user.email ?? "",
       session.user.idUsuario,
-      session.user.rol
+      session.user.rol,
+      session.user.idEmpresa!
     );
     return NextResponse.json({ ok: true });
   } catch (err) {

@@ -16,7 +16,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       descripcion ?? null,
       session.user.email ?? "",
       session.user.idUsuario,
-      session.user.rol
+      session.user.rol,
+      session.user.idEmpresa!
     );
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -33,7 +34,8 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
       Number(params.id),
       session.user.email ?? "",
       session.user.idUsuario,
-      session.user.rol
+      session.user.rol,
+      session.user.idEmpresa!
     );
     return NextResponse.json({ ok: true });
   } catch (err) {

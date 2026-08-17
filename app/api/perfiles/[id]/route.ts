@@ -9,7 +9,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const { nombre } = await req.json();
 
   try {
-    await editarNombrePerfil(Number(params.id), nombre, session.user.email ?? "");
+    await editarNombrePerfil(Number(params.id), nombre, session.user.idEmpresa!, session.user.email ?? "");
     return NextResponse.json({ ok: true });
   } catch (err) {
     return handleApiError(err);
@@ -21,7 +21,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   if (session instanceof NextResponse) return session;
 
   try {
-    await desactivarPerfil(Number(params.id), session.user.email ?? "");
+    await desactivarPerfil(Number(params.id), session.user.idEmpresa!, session.user.email ?? "");
     return NextResponse.json({ ok: true });
   } catch (err) {
     return handleApiError(err);

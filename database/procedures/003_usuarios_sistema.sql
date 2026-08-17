@@ -1,5 +1,5 @@
 -- =====================================================================
--- Stored Procedures: usuarios_sistema (cuentas de API)
+-- Stored Procedures: usuarios_sistema (cuentas de servicio para acceso via API)
 -- Nota: la generacion/hash del secreto es tecnica y se resuelve en la
 -- capa de aplicacion (bcrypt); el SP solo persiste y valida.
 -- =====================================================================
@@ -12,6 +12,7 @@ CREATE PROCEDURE sp_usuario_sistema_crear(
   IN p_nombre_sistema  VARCHAR(150),
   IN p_api_key         VARCHAR(64),
   IN p_api_secret_hash VARCHAR(255),
+  IN p_id_empresa      INT UNSIGNED,
   IN p_creado_por      VARCHAR(150)
 )
 BEGIN
@@ -19,8 +20,12 @@ BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La api_key generada ya existe, reintente';
   END IF;
 
-  INSERT INTO usuarios_sistema (nombre_sistema, api_key, api_secret_hash, creado_por)
-  VALUES (p_nombre_sistema, p_api_key, p_api_secret_hash, p_creado_por);
+  IF p_id_empresa IS NULL OR NOT EXISTS (SELECT 1 FROM empresas WHERE id_empresa = p_id_empresa AND activo = 1) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Empresa invalida';
+  END IF;
+
+  INSERT INTO usuarios_sistema (nombre_sistema, api_key, api_secret_hash, id_empresa, creado_por)
+  VALUES (p_nombre_sistema, p_api_key, p_api_secret_hash, p_id_empresa, p_creado_por);
 
   SELECT LAST_INSERT_ID() AS id_usuario_sistema;
 END $$
@@ -28,10 +33,14 @@ END $$
 DROP PROCEDURE IF EXISTS sp_usuario_sistema_revocar $$
 CREATE PROCEDURE sp_usuario_sistema_revocar(
   IN p_id_usuario_sistema INT UNSIGNED,
+  IN p_id_empresa_actor   INT UNSIGNED,
   IN p_modificado_por     VARCHAR(150)
 )
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM usuarios_sistema WHERE id_usuario_sistema = p_id_usuario_sistema) THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM usuarios_sistema
+    WHERE id_usuario_sistema = p_id_usuario_sistema AND id_empresa = p_id_empresa_actor
+  ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Usuario de sistema no encontrado';
   END IF;
 
@@ -42,10 +51,13 @@ BEGIN
 END $$
 
 DROP PROCEDURE IF EXISTS sp_usuario_sistema_listar $$
-CREATE PROCEDURE sp_usuario_sistema_listar()
+CREATE PROCEDURE sp_usuario_sistema_listar(
+  IN p_id_empresa_actor INT UNSIGNED
+)
 BEGIN
   SELECT id_usuario_sistema, nombre_sistema, api_key, activo, fecha_creacion
   FROM usuarios_sistema
+  WHERE id_empresa = p_id_empresa_actor
   ORDER BY fecha_creacion DESC;
 END $$
 
@@ -54,7 +66,7 @@ CREATE PROCEDURE sp_usuario_sistema_validar(
   IN p_api_key VARCHAR(64)
 )
 BEGIN
-  SELECT id_usuario_sistema, nombre_sistema, api_key, api_secret_hash, activo
+  SELECT id_usuario_sistema, nombre_sistema, api_key, api_secret_hash, id_empresa, activo
   FROM usuarios_sistema
   WHERE api_key = p_api_key
     AND activo = 1

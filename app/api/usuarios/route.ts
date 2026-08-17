@@ -9,7 +9,7 @@ export async function GET() {
   if (session instanceof NextResponse) return session;
 
   try {
-    const usuarios = await listarUsuarios();
+    const usuarios = await listarUsuarios(session.user.idEmpresa);
     return NextResponse.json(usuarios);
   } catch (err) {
     return handleApiError(err);
@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
       email,
       passwordHash,
       codigoRol,
+      session.user.idEmpresa,
       session.user.email ?? ""
     );
     return NextResponse.json(

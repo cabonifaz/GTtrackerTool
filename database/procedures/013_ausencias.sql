@@ -8,19 +8,22 @@ DELIMITER $$
 
 DROP PROCEDURE IF EXISTS sp_ausencia_crear $$
 CREATE PROCEDURE sp_ausencia_crear(
-  IN p_id_usuario     INT UNSIGNED,
-  IN p_id_tipo        INT UNSIGNED,
-  IN p_fecha_inicio   DATE,
-  IN p_fecha_fin      DATE,
-  IN p_motivo         VARCHAR(255),
-  IN p_evidencia      LONGBLOB,
-  IN p_evidencia_tipo VARCHAR(100),
-  IN p_creado_por     VARCHAR(150)
+  IN p_id_usuario       INT UNSIGNED,
+  IN p_id_tipo          INT UNSIGNED,
+  IN p_fecha_inicio     DATE,
+  IN p_fecha_fin        DATE,
+  IN p_motivo           VARCHAR(255),
+  IN p_evidencia        LONGBLOB,
+  IN p_evidencia_tipo   VARCHAR(100),
+  IN p_id_empresa_actor INT UNSIGNED,
+  IN p_creado_por       VARCHAR(150)
 )
 BEGIN
   DECLARE v_id_estado_pendiente INT UNSIGNED;
 
-  IF NOT EXISTS (SELECT 1 FROM usuarios WHERE id_usuario = p_id_usuario AND activo = 1) THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM usuarios WHERE id_usuario = p_id_usuario AND activo = 1 AND id_empresa = p_id_empresa_actor
+  ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Usuario invalido o inactivo';
   END IF;
 
@@ -74,8 +77,9 @@ END $$
 
 DROP PROCEDURE IF EXISTS sp_ausencia_listar_todas $$
 CREATE PROCEDURE sp_ausencia_listar_todas(
-  IN p_id_usuario  INT UNSIGNED,
-  IN p_codigo_estado VARCHAR(50)
+  IN p_id_usuario       INT UNSIGNED,
+  IN p_codigo_estado    VARCHAR(50),
+  IN p_id_empresa_actor INT UNSIGNED
 )
 BEGIN
   SELECT a.id_ausencia, a.id_usuario, CONCAT(u.nombres, ' ', u.apellidos) AS colaborador,
@@ -90,6 +94,7 @@ BEGIN
   JOIN maestro t ON t.id_maestro = a.id_tipo
   JOIN maestro e ON e.id_maestro = a.id_estado
   WHERE a.activo = 1
+    AND u.id_empresa = p_id_empresa_actor
     AND (p_id_usuario IS NULL OR a.id_usuario = p_id_usuario)
     AND (p_codigo_estado IS NULL OR e.codigo = p_codigo_estado)
   ORDER BY a.fecha_creacion DESC;
@@ -97,23 +102,32 @@ END $$
 
 DROP PROCEDURE IF EXISTS sp_ausencia_obtener_evidencia $$
 CREATE PROCEDURE sp_ausencia_obtener_evidencia(
-  IN p_id_ausencia INT UNSIGNED
+  IN p_id_ausencia      INT UNSIGNED,
+  IN p_id_empresa_actor INT UNSIGNED
 )
 BEGIN
-  SELECT id_usuario, evidencia, evidencia_tipo FROM ausencias WHERE id_ausencia = p_id_ausencia;
+  SELECT a.id_usuario, a.evidencia, a.evidencia_tipo
+  FROM ausencias a
+  JOIN usuarios u ON u.id_usuario = a.id_usuario
+  WHERE a.id_ausencia = p_id_ausencia AND u.id_empresa = p_id_empresa_actor;
 END $$
 
 DROP PROCEDURE IF EXISTS sp_ausencia_aprobar $$
 CREATE PROCEDURE sp_ausencia_aprobar(
-  IN p_id_ausencia    INT UNSIGNED,
-  IN p_evidencia      LONGBLOB,
-  IN p_evidencia_tipo VARCHAR(100),
-  IN p_aprobado_por   VARCHAR(150)
+  IN p_id_ausencia      INT UNSIGNED,
+  IN p_evidencia        LONGBLOB,
+  IN p_evidencia_tipo   VARCHAR(100),
+  IN p_id_empresa_actor INT UNSIGNED,
+  IN p_aprobado_por     VARCHAR(150)
 )
 BEGIN
   DECLARE v_id_estado_aprobada INT UNSIGNED;
 
-  IF NOT EXISTS (SELECT 1 FROM ausencias WHERE id_ausencia = p_id_ausencia AND activo = 1) THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM ausencias a
+    JOIN usuarios u ON u.id_usuario = a.id_usuario
+    WHERE a.id_ausencia = p_id_ausencia AND a.activo = 1 AND u.id_empresa = p_id_empresa_actor
+  ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ausencia no encontrada';
   END IF;
 
@@ -133,14 +147,19 @@ END $$
 
 DROP PROCEDURE IF EXISTS sp_ausencia_rechazar $$
 CREATE PROCEDURE sp_ausencia_rechazar(
-  IN p_id_ausencia    INT UNSIGNED,
-  IN p_motivo_rechazo VARCHAR(255),
-  IN p_modificado_por VARCHAR(150)
+  IN p_id_ausencia      INT UNSIGNED,
+  IN p_motivo_rechazo   VARCHAR(255),
+  IN p_id_empresa_actor INT UNSIGNED,
+  IN p_modificado_por   VARCHAR(150)
 )
 BEGIN
   DECLARE v_id_estado_rechazada INT UNSIGNED;
 
-  IF NOT EXISTS (SELECT 1 FROM ausencias WHERE id_ausencia = p_id_ausencia AND activo = 1) THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM ausencias a
+    JOIN usuarios u ON u.id_usuario = a.id_usuario
+    WHERE a.id_ausencia = p_id_ausencia AND a.activo = 1 AND u.id_empresa = p_id_empresa_actor
+  ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ausencia no encontrada';
   END IF;
 
@@ -158,13 +177,16 @@ END $$
 
 DROP PROCEDURE IF EXISTS sp_saldo_vacaciones_asignar $$
 CREATE PROCEDURE sp_saldo_vacaciones_asignar(
-  IN p_id_usuario     INT UNSIGNED,
-  IN p_anio           INT,
-  IN p_dias_asignados DECIMAL(5,2),
-  IN p_creado_por     VARCHAR(150)
+  IN p_id_usuario       INT UNSIGNED,
+  IN p_anio             INT,
+  IN p_dias_asignados   DECIMAL(5,2),
+  IN p_id_empresa_actor INT UNSIGNED,
+  IN p_creado_por       VARCHAR(150)
 )
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM usuarios WHERE id_usuario = p_id_usuario AND activo = 1) THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM usuarios WHERE id_usuario = p_id_usuario AND activo = 1 AND id_empresa = p_id_empresa_actor
+  ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Usuario invalido o inactivo';
   END IF;
 
@@ -184,10 +206,17 @@ END $$
 -- caen en ese anio) y pendientes.
 DROP PROCEDURE IF EXISTS sp_saldo_vacaciones_listar $$
 CREATE PROCEDURE sp_saldo_vacaciones_listar(
-  IN p_id_usuario INT UNSIGNED,
-  IN p_anio       INT
+  IN p_id_usuario       INT UNSIGNED,
+  IN p_anio             INT,
+  IN p_id_empresa_actor INT UNSIGNED
 )
 BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM usuarios WHERE id_usuario = p_id_usuario AND id_empresa = p_id_empresa_actor
+  ) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Usuario invalido';
+  END IF;
+
   SELECT
     p_id_usuario AS id_usuario,
     p_anio AS anio,

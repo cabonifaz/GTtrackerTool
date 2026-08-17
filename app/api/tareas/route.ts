@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const idProyecto = idProyectoParam ? Number(idProyectoParam) : null;
 
   try {
-    const tareas = await listarTareas(idProyecto, session.user.idUsuario, session.user.rol);
+    const tareas = await listarTareas(idProyecto, session.user.idUsuario, session.user.rol, session.user.idEmpresa!);
     return NextResponse.json(tareas);
   } catch (err) {
     return handleApiError(err);
@@ -30,7 +30,8 @@ export async function POST(req: NextRequest) {
       descripcion ?? null,
       session.user.email ?? "",
       session.user.idUsuario,
-      session.user.rol
+      session.user.rol,
+      session.user.idEmpresa!
     );
     return NextResponse.json(result[0], { status: 201 });
   } catch (err) {

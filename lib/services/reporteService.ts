@@ -7,12 +7,18 @@ import {
   ResumenAvanceRow,
 } from "@/lib/types";
 
-export function reporteHorasDetalle(idsUsuario: number[], fechaInicio: string, fechaFin: string) {
+export function reporteHorasDetalle(
+  idsUsuario: number[],
+  fechaInicio: string,
+  fechaFin: string,
+  idEmpresaActor: number
+) {
   const idsCsv = idsUsuario.length > 0 ? idsUsuario.join(",") : null;
   return executeProcedure<ReporteDetalleRow>("sp_reporte_horas_detalle", [
     idsCsv,
     fechaInicio,
     fechaFin,
+    idEmpresaActor,
   ]);
 }
 
@@ -37,27 +43,39 @@ export function reporteHorasResumenMensual(
   ]);
 }
 
-export function reporteTiempoPorTarea(idsUsuario: number[], fechaInicio: string, fechaFin: string) {
+export function reporteTiempoPorTarea(
+  idsUsuario: number[],
+  fechaInicio: string,
+  fechaFin: string,
+  idEmpresaActor: number
+) {
   const idsCsv = idsUsuario.length > 0 ? idsUsuario.join(",") : null;
   return executeProcedure<ReporteTareaRow>("sp_reporte_tiempo_por_tarea", [
     idsCsv,
     fechaInicio,
     fechaFin,
+    idEmpresaActor,
   ]);
 }
 
-export function reporteCostosMensual(idProyecto: number, anio: number, mes: number) {
-  return executeProcedure<ReporteCostoRow>("sp_reporte_costos_mensual", [idProyecto, anio, mes]);
+export function reporteCostosMensual(idProyecto: number, anio: number, mes: number, idEmpresaActor: number) {
+  return executeProcedure<ReporteCostoRow>("sp_reporte_costos_mensual", [idProyecto, anio, mes, idEmpresaActor]);
 }
 
-export function reporteResumenAvance(idProyecto: number, anio: number, mes: number) {
-  return executeProcedure<ResumenAvanceRow>("sp_reporte_resumen_avance", [idProyecto, anio, mes]);
+export function reporteResumenAvance(idProyecto: number, anio: number, mes: number, idEmpresaActor: number) {
+  return executeProcedure<ResumenAvanceRow>("sp_reporte_resumen_avance", [idProyecto, anio, mes, idEmpresaActor]);
 }
 
-export function reporteProyeccionCliente(idCliente: number, mesesAtras: number, mesesAdelante: number) {
+export function reporteProyeccionCliente(
+  idCliente: number,
+  mesesAtras: number,
+  mesesAdelante: number,
+  idEmpresaActor: number
+) {
   return executeProcedure<ProyeccionRow>("sp_reporte_proyeccion_cliente", [
     idCliente,
     mesesAtras,
     mesesAdelante,
+    idEmpresaActor,
   ]);
 }

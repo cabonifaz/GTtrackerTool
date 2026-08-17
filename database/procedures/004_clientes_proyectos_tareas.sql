@@ -1,5 +1,8 @@
 -- =====================================================================
 -- Stored Procedures: clientes, proyectos, tareas
+-- Convencion multi-tenant: p_id_empresa_actor se reenvia desde la
+-- sesion. clientes/proyectos tienen columna id_empresa directa; tareas
+-- la hereda validando siempre a traves de su proyecto.
 -- =====================================================================
 USE trackerTime;
 
@@ -8,26 +11,28 @@ DELIMITER $$
 -- ---------------------------- CLIENTES ------------------------------
 DROP PROCEDURE IF EXISTS sp_cliente_crear $$
 CREATE PROCEDURE sp_cliente_crear(
-  IN p_nombre     VARCHAR(150),
-  IN p_creado_por VARCHAR(150)
+  IN p_nombre       VARCHAR(150),
+  IN p_id_empresa   INT UNSIGNED,
+  IN p_creado_por   VARCHAR(150)
 )
 BEGIN
-  IF EXISTS (SELECT 1 FROM clientes WHERE nombre = p_nombre AND activo = 1) THEN
+  IF EXISTS (SELECT 1 FROM clientes WHERE nombre = p_nombre AND id_empresa = p_id_empresa AND activo = 1) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ya existe un cliente activo con ese nombre';
   END IF;
 
-  INSERT INTO clientes (nombre, creado_por) VALUES (p_nombre, p_creado_por);
+  INSERT INTO clientes (nombre, id_empresa, creado_por) VALUES (p_nombre, p_id_empresa, p_creado_por);
   SELECT LAST_INSERT_ID() AS id_cliente;
 END $$
 
 DROP PROCEDURE IF EXISTS sp_cliente_editar $$
 CREATE PROCEDURE sp_cliente_editar(
-  IN p_id_cliente     INT UNSIGNED,
-  IN p_nombre         VARCHAR(150),
-  IN p_modificado_por VARCHAR(150)
+  IN p_id_cliente       INT UNSIGNED,
+  IN p_nombre           VARCHAR(150),
+  IN p_id_empresa_actor INT UNSIGNED,
+  IN p_modificado_por   VARCHAR(150)
 )
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM clientes WHERE id_cliente = p_id_cliente) THEN
+  IF NOT EXISTS (SELECT 1 FROM clientes WHERE id_cliente = p_id_cliente AND id_empresa = p_id_empresa_actor) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cliente no encontrado';
   END IF;
 
@@ -38,11 +43,12 @@ END $$
 
 DROP PROCEDURE IF EXISTS sp_cliente_desactivar $$
 CREATE PROCEDURE sp_cliente_desactivar(
-  IN p_id_cliente     INT UNSIGNED,
-  IN p_modificado_por VARCHAR(150)
+  IN p_id_cliente       INT UNSIGNED,
+  IN p_id_empresa_actor INT UNSIGNED,
+  IN p_modificado_por   VARCHAR(150)
 )
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM clientes WHERE id_cliente = p_id_cliente) THEN
+  IF NOT EXISTS (SELECT 1 FROM clientes WHERE id_cliente = p_id_cliente AND id_empresa = p_id_empresa_actor) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cliente no encontrado';
   END IF;
 
@@ -54,12 +60,14 @@ END $$
 DROP PROCEDURE IF EXISTS sp_cliente_listar $$
 CREATE PROCEDURE sp_cliente_listar(
   IN p_id_usuario_actor  INT UNSIGNED,
-  IN p_codigo_rol_actor  VARCHAR(50)
+  IN p_codigo_rol_actor  VARCHAR(50),
+  IN p_id_empresa_actor  INT UNSIGNED
 )
 BEGIN
   IF p_codigo_rol_actor = 'ADMIN' THEN
     SELECT id_cliente, nombre, activo, fecha_creacion
     FROM clientes
+    WHERE id_empresa = p_id_empresa_actor
     ORDER BY nombre;
   ELSE
     SELECT DISTINCT c.id_cliente, c.nombre, c.activo, c.fecha_creacion
@@ -68,7 +76,7 @@ BEGIN
     JOIN usuarios_proyectos up ON up.id_proyecto = pr.id_proyecto
                                 AND up.id_usuario = p_id_usuario_actor
                                 AND up.activo = 1
-    WHERE c.activo = 1
+    WHERE c.activo = 1 AND c.id_empresa = p_id_empresa_actor
     ORDER BY c.nombre;
   END IF;
 END $$
@@ -86,36 +94,40 @@ CREATE PROCEDURE sp_proyecto_crear(
   IN p_id_cliente   INT UNSIGNED,
   IN p_nombre       VARCHAR(150),
   IN p_descripcion  VARCHAR(255),
+  IN p_id_empresa   INT UNSIGNED,
   IN p_creado_por   VARCHAR(150)
 )
 BEGIN
   DECLARE v_id_estado INT UNSIGNED;
 
-  IF p_id_cliente IS NOT NULL AND NOT EXISTS (SELECT 1 FROM clientes WHERE id_cliente = p_id_cliente AND activo = 1) THEN
+  IF p_id_cliente IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM clientes WHERE id_cliente = p_id_cliente AND id_empresa = p_id_empresa AND activo = 1
+  ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cliente invalido o inactivo';
   END IF;
 
   SELECT id_maestro INTO v_id_estado
   FROM maestro WHERE tipo_maestro = 'ESTADO_PROYECTO' AND codigo = 'ACTIVO' LIMIT 1;
 
-  INSERT INTO proyectos (id_cliente, nombre, descripcion, id_estado, creado_por)
-  VALUES (p_id_cliente, p_nombre, p_descripcion, v_id_estado, p_creado_por);
+  INSERT INTO proyectos (id_cliente, nombre, descripcion, id_estado, id_empresa, creado_por)
+  VALUES (p_id_cliente, p_nombre, p_descripcion, v_id_estado, p_id_empresa, p_creado_por);
 
   SELECT LAST_INSERT_ID() AS id_proyecto;
 END $$
 
 DROP PROCEDURE IF EXISTS sp_proyecto_editar $$
 CREATE PROCEDURE sp_proyecto_editar(
-  IN p_id_proyecto    INT UNSIGNED,
-  IN p_nombre         VARCHAR(150),
-  IN p_descripcion    VARCHAR(255),
-  IN p_codigo_estado  VARCHAR(50),
-  IN p_modificado_por VARCHAR(150)
+  IN p_id_proyecto      INT UNSIGNED,
+  IN p_nombre           VARCHAR(150),
+  IN p_descripcion      VARCHAR(255),
+  IN p_codigo_estado    VARCHAR(50),
+  IN p_id_empresa_actor INT UNSIGNED,
+  IN p_modificado_por   VARCHAR(150)
 )
 BEGIN
   DECLARE v_id_estado INT UNSIGNED;
 
-  IF NOT EXISTS (SELECT 1 FROM proyectos WHERE id_proyecto = p_id_proyecto) THEN
+  IF NOT EXISTS (SELECT 1 FROM proyectos WHERE id_proyecto = p_id_proyecto AND id_empresa = p_id_empresa_actor) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Proyecto no encontrado';
   END IF;
 
@@ -134,11 +146,12 @@ END $$
 
 DROP PROCEDURE IF EXISTS sp_proyecto_desactivar $$
 CREATE PROCEDURE sp_proyecto_desactivar(
-  IN p_id_proyecto    INT UNSIGNED,
-  IN p_modificado_por VARCHAR(150)
+  IN p_id_proyecto      INT UNSIGNED,
+  IN p_id_empresa_actor INT UNSIGNED,
+  IN p_modificado_por   VARCHAR(150)
 )
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM proyectos WHERE id_proyecto = p_id_proyecto) THEN
+  IF NOT EXISTS (SELECT 1 FROM proyectos WHERE id_proyecto = p_id_proyecto AND id_empresa = p_id_empresa_actor) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Proyecto no encontrado';
   END IF;
 
@@ -150,7 +163,8 @@ END $$
 DROP PROCEDURE IF EXISTS sp_proyecto_listar $$
 CREATE PROCEDURE sp_proyecto_listar(
   IN p_id_usuario_actor  INT UNSIGNED,
-  IN p_codigo_rol_actor  VARCHAR(50)
+  IN p_codigo_rol_actor  VARCHAR(50),
+  IN p_id_empresa_actor  INT UNSIGNED
 )
 BEGIN
   IF p_codigo_rol_actor = 'ADMIN' THEN
@@ -159,6 +173,7 @@ BEGIN
     FROM proyectos p
     LEFT JOIN clientes c ON c.id_cliente = p.id_cliente
     JOIN maestro e ON e.id_maestro = p.id_estado
+    WHERE p.id_empresa = p_id_empresa_actor
     ORDER BY p.nombre;
   ELSE
     SELECT p.id_proyecto, p.id_cliente, c.nombre AS cliente, p.nombre, p.descripcion,
@@ -169,7 +184,7 @@ BEGIN
                                 AND up.activo = 1
     LEFT JOIN clientes c ON c.id_cliente = p.id_cliente
     JOIN maestro e ON e.id_maestro = p.id_estado
-    WHERE p.activo = 1
+    WHERE p.activo = 1 AND p.id_empresa = p_id_empresa_actor
     ORDER BY p.nombre;
   END IF;
 END $$
@@ -182,7 +197,8 @@ CREATE PROCEDURE sp_tarea_crear(
   IN p_descripcion      VARCHAR(255),
   IN p_creado_por       VARCHAR(150),
   IN p_id_usuario_actor INT UNSIGNED,
-  IN p_codigo_rol_actor VARCHAR(50)
+  IN p_codigo_rol_actor VARCHAR(50),
+  IN p_id_empresa_actor INT UNSIGNED
 )
 BEGIN
   DECLARE v_id_estado INT UNSIGNED;
@@ -195,7 +211,7 @@ BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El nombre de la tarea no puede superar 150 caracteres';
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM proyectos WHERE id_proyecto = p_id_proyecto) THEN
+  IF NOT EXISTS (SELECT 1 FROM proyectos WHERE id_proyecto = p_id_proyecto AND id_empresa = p_id_empresa_actor) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El proyecto indicado no existe';
   END IF;
 
@@ -228,16 +244,21 @@ END $$
 
 DROP PROCEDURE IF EXISTS sp_tarea_editar $$
 CREATE PROCEDURE sp_tarea_editar(
-  IN p_id_tarea       INT UNSIGNED,
-  IN p_nombre         VARCHAR(150),
-  IN p_descripcion    VARCHAR(255),
-  IN p_codigo_estado  VARCHAR(50),
-  IN p_modificado_por VARCHAR(150)
+  IN p_id_tarea         INT UNSIGNED,
+  IN p_nombre           VARCHAR(150),
+  IN p_descripcion      VARCHAR(255),
+  IN p_codigo_estado    VARCHAR(50),
+  IN p_id_empresa_actor INT UNSIGNED,
+  IN p_modificado_por   VARCHAR(150)
 )
 BEGIN
   DECLARE v_id_estado INT UNSIGNED;
 
-  IF NOT EXISTS (SELECT 1 FROM tareas WHERE id_tarea = p_id_tarea) THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM tareas t
+    JOIN proyectos pr ON pr.id_proyecto = t.id_proyecto
+    WHERE t.id_tarea = p_id_tarea AND pr.id_empresa = p_id_empresa_actor
+  ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Tarea no encontrada';
   END IF;
 
@@ -256,11 +277,16 @@ END $$
 
 DROP PROCEDURE IF EXISTS sp_tarea_desactivar $$
 CREATE PROCEDURE sp_tarea_desactivar(
-  IN p_id_tarea       INT UNSIGNED,
-  IN p_modificado_por VARCHAR(150)
+  IN p_id_tarea         INT UNSIGNED,
+  IN p_id_empresa_actor INT UNSIGNED,
+  IN p_modificado_por   VARCHAR(150)
 )
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM tareas WHERE id_tarea = p_id_tarea) THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM tareas t
+    JOIN proyectos pr ON pr.id_proyecto = t.id_proyecto
+    WHERE t.id_tarea = p_id_tarea AND pr.id_empresa = p_id_empresa_actor
+  ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Tarea no encontrada';
   END IF;
 
@@ -274,14 +300,17 @@ CREATE PROCEDURE sp_tarea_finalizar(
   IN p_id_tarea         INT UNSIGNED,
   IN p_modificado_por   VARCHAR(150),
   IN p_id_usuario_actor INT UNSIGNED,
-  IN p_codigo_rol_actor VARCHAR(50)
+  IN p_codigo_rol_actor VARCHAR(50),
+  IN p_id_empresa_actor INT UNSIGNED
 )
 BEGIN
   DECLARE v_id_proyecto INT UNSIGNED;
   DECLARE v_id_estado_finalizada INT UNSIGNED;
 
-  SELECT id_proyecto INTO v_id_proyecto
-  FROM tareas WHERE id_tarea = p_id_tarea AND activo = 1;
+  SELECT t.id_proyecto INTO v_id_proyecto
+  FROM tareas t
+  JOIN proyectos pr ON pr.id_proyecto = t.id_proyecto
+  WHERE t.id_tarea = p_id_tarea AND t.activo = 1 AND pr.id_empresa = p_id_empresa_actor;
 
   IF v_id_proyecto IS NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Tarea no encontrada o inactiva';
@@ -306,7 +335,8 @@ DROP PROCEDURE IF EXISTS sp_tarea_listar $$
 CREATE PROCEDURE sp_tarea_listar(
   IN p_id_proyecto      INT UNSIGNED,
   IN p_id_usuario_actor INT UNSIGNED,
-  IN p_codigo_rol_actor VARCHAR(50)
+  IN p_codigo_rol_actor VARCHAR(50),
+  IN p_id_empresa_actor INT UNSIGNED
 )
 BEGIN
   IF p_codigo_rol_actor = 'ADMIN' THEN
@@ -322,7 +352,8 @@ BEGIN
       WHERE activo = 1
       GROUP BY id_tarea
     ) tot ON tot.id_tarea = t.id_tarea
-    WHERE p_id_proyecto IS NULL OR t.id_proyecto = p_id_proyecto
+    WHERE pr.id_empresa = p_id_empresa_actor
+      AND (p_id_proyecto IS NULL OR t.id_proyecto = p_id_proyecto)
     ORDER BY t.fecha_creacion DESC;
   ELSE
     SELECT t.id_tarea, t.id_proyecto, pr.nombre AS proyecto, t.nombre, t.descripcion,
@@ -341,6 +372,7 @@ BEGIN
       GROUP BY id_tarea
     ) tot ON tot.id_tarea = t.id_tarea
     WHERE t.activo = 1
+      AND pr.id_empresa = p_id_empresa_actor
       AND (p_id_proyecto IS NULL OR t.id_proyecto = p_id_proyecto)
     ORDER BY t.fecha_creacion DESC;
   END IF;

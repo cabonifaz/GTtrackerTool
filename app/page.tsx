@@ -4,5 +4,12 @@ import { authOptions } from "@/lib/auth";
 
 export default async function Home() {
   const session = await getServerSession(authOptions);
-  redirect(session ? "/cronometro" : "/login");
+
+  if (session?.user?.rol === "SUPER_ADMIN") {
+    redirect("/plataforma");
+  }
+  if (session?.user?.empresaSlug) {
+    redirect(`/${session.user.empresaSlug}/cronometro`);
+  }
+  redirect("/plataforma/login");
 }

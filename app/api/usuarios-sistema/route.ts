@@ -9,7 +9,7 @@ export async function GET() {
   if (session instanceof NextResponse) return session;
 
   try {
-    const cuentas = await listarUsuariosSistema();
+    const cuentas = await listarUsuariosSistema(session.user.idEmpresa!);
     return NextResponse.json(cuentas);
   } catch (err) {
     return handleApiError(err);
@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
       nombreSistema,
       apiKey,
       apiSecretHash,
+      session.user.idEmpresa!,
       session.user.email ?? ""
     );
     // El api_secret en claro solo se muestra una vez, al momento de la creacion.

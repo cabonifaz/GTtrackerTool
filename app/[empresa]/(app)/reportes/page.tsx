@@ -17,13 +17,14 @@ function hoy() {
 export default async function ReportesPage() {
   const session = await getServerSession(authOptions);
   const esAdmin = session?.user?.rol === "ADMIN";
+  const idEmpresa = session!.user.idEmpresa!;
   const fechaInicio = primerDiaMes();
   const fechaFin = hoy();
 
   const [usuarios, filas, proyectos] = await Promise.all([
-    esAdmin ? listarUsuarios() : Promise.resolve([]),
-    reporteHorasDetalle(esAdmin ? [] : [session!.user.idUsuario], fechaInicio, fechaFin),
-    esAdmin ? listarProyectos(session!.user.idUsuario, session!.user.rol) : Promise.resolve([]),
+    esAdmin ? listarUsuarios(idEmpresa) : Promise.resolve([]),
+    reporteHorasDetalle(esAdmin ? [] : [session!.user.idUsuario], fechaInicio, fechaFin, idEmpresa),
+    esAdmin ? listarProyectos(session!.user.idUsuario, session!.user.rol, idEmpresa) : Promise.resolve([]),
   ]);
 
   return (

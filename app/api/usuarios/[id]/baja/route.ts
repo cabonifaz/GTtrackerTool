@@ -7,7 +7,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   if (session instanceof NextResponse) return session;
 
   try {
-    await desactivarUsuario(Number(params.id), session.user.email ?? "");
+    await desactivarUsuario(Number(params.id), session.user.idEmpresa, session.user.email ?? "");
     return NextResponse.json({ ok: true });
   } catch (err) {
     return handleApiError(err);

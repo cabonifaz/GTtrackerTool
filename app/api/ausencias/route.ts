@@ -46,6 +46,7 @@ export async function POST(req: Request) {
       motivo ? String(motivo) : null,
       evidencia,
       evidenciaTipo,
+      session.user.idEmpresa!,
       session.user.email ?? ""
     );
     return NextResponse.json(result[0], { status: 201 });

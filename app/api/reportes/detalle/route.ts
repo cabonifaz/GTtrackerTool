@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
       : [session.user.idUsuario];
 
   try {
-    const detalle = await reporteHorasDetalle(idsUsuario, fechaInicio, fechaFin);
+    const detalle = await reporteHorasDetalle(idsUsuario, fechaInicio, fechaFin, session.user.idEmpresa!);
     return NextResponse.json(detalle);
   } catch (err) {
     return handleApiError(err);

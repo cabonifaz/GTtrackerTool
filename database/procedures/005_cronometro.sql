@@ -14,7 +14,8 @@ CREATE PROCEDURE sp_cronometro_iniciar(
   IN p_descripcion      VARCHAR(255),
   IN p_creado_por       VARCHAR(150),
   IN p_codigo_rol_actor VARCHAR(50),
-  IN p_fecha_inicio     DATETIME
+  IN p_fecha_inicio     DATETIME,
+  IN p_id_empresa_actor INT UNSIGNED
 )
 BEGIN
   DECLARE v_id_tarea INT UNSIGNED DEFAULT p_id_tarea;
@@ -34,7 +35,7 @@ BEGIN
       SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El nombre de la tarea no puede superar 150 caracteres';
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM proyectos WHERE id_proyecto = p_id_proyecto) THEN
+    IF NOT EXISTS (SELECT 1 FROM proyectos WHERE id_proyecto = p_id_proyecto AND id_empresa = p_id_empresa_actor) THEN
       SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El proyecto indicado no existe';
     END IF;
 
@@ -67,7 +68,11 @@ BEGIN
       SET v_id_tarea = LAST_INSERT_ID();
     END IF;
   ELSE
-    IF NOT EXISTS (SELECT 1 FROM tareas WHERE id_tarea = v_id_tarea AND activo = 1) THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM tareas t
+      JOIN proyectos pr ON pr.id_proyecto = t.id_proyecto
+      WHERE t.id_tarea = v_id_tarea AND t.activo = 1 AND pr.id_empresa = p_id_empresa_actor
+    ) THEN
       SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Tarea invalida o inactiva';
     END IF;
 
@@ -218,7 +223,8 @@ CREATE PROCEDURE sp_registro_tiempo_crear_manual(
   IN p_fecha_fin        DATETIME,
   IN p_descripcion      VARCHAR(255),
   IN p_creado_por       VARCHAR(150),
-  IN p_codigo_rol_actor VARCHAR(50)
+  IN p_codigo_rol_actor VARCHAR(50),
+  IN p_id_empresa_actor INT UNSIGNED
 )
 BEGIN
   DECLARE v_id_tarea INT UNSIGNED DEFAULT p_id_tarea;
@@ -247,7 +253,7 @@ BEGIN
       SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El nombre de la tarea no puede superar 150 caracteres';
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM proyectos WHERE id_proyecto = p_id_proyecto) THEN
+    IF NOT EXISTS (SELECT 1 FROM proyectos WHERE id_proyecto = p_id_proyecto AND id_empresa = p_id_empresa_actor) THEN
       SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El proyecto indicado no existe';
     END IF;
 
@@ -279,7 +285,11 @@ BEGIN
       SET v_id_tarea = LAST_INSERT_ID();
     END IF;
   ELSE
-    IF NOT EXISTS (SELECT 1 FROM tareas WHERE id_tarea = v_id_tarea) THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM tareas t
+      JOIN proyectos pr ON pr.id_proyecto = t.id_proyecto
+      WHERE t.id_tarea = v_id_tarea AND pr.id_empresa = p_id_empresa_actor
+    ) THEN
       SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La tarea indicada no existe';
     END IF;
 
@@ -360,15 +370,18 @@ CREATE PROCEDURE sp_registro_tiempo_editar(
   IN p_descripcion      VARCHAR(255),
   IN p_modificado_por   VARCHAR(150),
   IN p_id_usuario_actor INT UNSIGNED,
-  IN p_codigo_rol_actor VARCHAR(50)
+  IN p_codigo_rol_actor VARCHAR(50),
+  IN p_id_empresa_actor INT UNSIGNED
 )
 BEGIN
   DECLARE v_id_usuario_dueno INT UNSIGNED;
 
-  SELECT id_usuario INTO v_id_usuario_dueno
-  FROM registros_tiempo
-  WHERE id_registro = p_id_registro
-    AND (p_codigo_rol_actor = 'ADMIN' OR id_usuario = p_id_usuario_actor);
+  SELECT rt.id_usuario INTO v_id_usuario_dueno
+  FROM registros_tiempo rt
+  JOIN usuarios u ON u.id_usuario = rt.id_usuario
+  WHERE rt.id_registro = p_id_registro
+    AND u.id_empresa = p_id_empresa_actor
+    AND (p_codigo_rol_actor = 'ADMIN' OR rt.id_usuario = p_id_usuario_actor);
 
   IF v_id_usuario_dueno IS NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Registro de tiempo no encontrado';
@@ -406,13 +419,16 @@ CREATE PROCEDURE sp_registro_tiempo_eliminar(
   IN p_id_registro      INT UNSIGNED,
   IN p_modificado_por   VARCHAR(150),
   IN p_id_usuario_actor INT UNSIGNED,
-  IN p_codigo_rol_actor VARCHAR(50)
+  IN p_codigo_rol_actor VARCHAR(50),
+  IN p_id_empresa_actor INT UNSIGNED
 )
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM registros_tiempo
-    WHERE id_registro = p_id_registro
-      AND (p_codigo_rol_actor = 'ADMIN' OR id_usuario = p_id_usuario_actor)
+    SELECT 1 FROM registros_tiempo rt
+    JOIN usuarios u ON u.id_usuario = rt.id_usuario
+    WHERE rt.id_registro = p_id_registro
+      AND u.id_empresa = p_id_empresa_actor
+      AND (p_codigo_rol_actor = 'ADMIN' OR rt.id_usuario = p_id_usuario_actor)
   ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Registro de tiempo no encontrado';
   END IF;

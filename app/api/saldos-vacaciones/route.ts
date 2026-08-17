@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     session.user.rol === "ADMIN" && idUsuarioParam ? Number(idUsuarioParam) : session.user.idUsuario;
 
   try {
-    const saldo = await obtenerSaldoVacaciones(idUsuario, anio);
+    const saldo = await obtenerSaldoVacaciones(idUsuario, anio, session.user.idEmpresa!);
     return NextResponse.json(saldo);
   } catch (err) {
     return handleApiError(err);
@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
       Number(idUsuario),
       Number(anio),
       Number(diasAsignados),
+      session.user.idEmpresa!,
       session.user.email ?? ""
     );
     return NextResponse.json({ ok: true });

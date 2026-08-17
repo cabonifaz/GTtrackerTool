@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
     const filas = await reporteProyeccionCliente(
       Number(idCliente),
       Number(mesesAtras),
-      Number(mesesAdelante)
+      Number(mesesAdelante),
+      session.user.idEmpresa!
     );
     return NextResponse.json(filas);
   } catch (err) {

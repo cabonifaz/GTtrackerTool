@@ -7,7 +7,7 @@ export async function GET() {
   if (session instanceof NextResponse) return session;
 
   try {
-    const clientes = await listarClientes(session.user.idUsuario, session.user.rol);
+    const clientes = await listarClientes(session.user.idUsuario, session.user.rol, session.user.idEmpresa!);
     return NextResponse.json(clientes);
   } catch (err) {
     return handleApiError(err);
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   const { nombre } = await req.json();
 
   try {
-    const result = await crearCliente(nombre, session.user.email ?? session.user.name ?? "");
+    const result = await crearCliente(nombre, session.user.idEmpresa!, session.user.email ?? session.user.name ?? "");
     return NextResponse.json(result[0], { status: 201 });
   } catch (err) {
     return handleApiError(err);

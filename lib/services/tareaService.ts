@@ -7,7 +7,8 @@ export function crearTarea(
   descripcion: string | null,
   creadoPor: string,
   idUsuarioActor: number,
-  codigoRolActor: CodigoRol
+  codigoRolActor: CodigoRol,
+  idEmpresaActor: number
 ) {
   return executeProcedure<{ id_tarea: number }>("sp_tarea_crear", [
     idProyecto,
@@ -16,6 +17,7 @@ export function crearTarea(
     creadoPor,
     idUsuarioActor,
     codigoRolActor,
+    idEmpresaActor,
   ]);
 }
 
@@ -24,6 +26,7 @@ export function editarTarea(
   nombre: string,
   descripcion: string | null,
   codigoEstado: string,
+  idEmpresaActor: number,
   modificadoPor: string
 ) {
   return executeProcedure("sp_tarea_editar", [
@@ -31,27 +34,36 @@ export function editarTarea(
     nombre,
     descripcion,
     codigoEstado,
+    idEmpresaActor,
     modificadoPor,
   ]);
 }
 
-export function desactivarTarea(idTarea: number, modificadoPor: string) {
-  return executeProcedure("sp_tarea_desactivar", [idTarea, modificadoPor]);
+export function desactivarTarea(idTarea: number, idEmpresaActor: number, modificadoPor: string) {
+  return executeProcedure("sp_tarea_desactivar", [idTarea, idEmpresaActor, modificadoPor]);
 }
 
 export function finalizarTarea(
   idTarea: number,
   modificadoPor: string,
   idUsuarioActor: number,
-  codigoRolActor: CodigoRol
+  codigoRolActor: CodigoRol,
+  idEmpresaActor: number
 ) {
-  return executeProcedure("sp_tarea_finalizar", [idTarea, modificadoPor, idUsuarioActor, codigoRolActor]);
+  return executeProcedure("sp_tarea_finalizar", [
+    idTarea,
+    modificadoPor,
+    idUsuarioActor,
+    codigoRolActor,
+    idEmpresaActor,
+  ]);
 }
 
 export function listarTareas(
   idProyecto: number | null,
   idUsuarioActor: number,
-  codigoRolActor: CodigoRol
+  codigoRolActor: CodigoRol,
+  idEmpresaActor: number
 ) {
-  return executeProcedure<Tarea>("sp_tarea_listar", [idProyecto, idUsuarioActor, codigoRolActor]);
+  return executeProcedure<Tarea>("sp_tarea_listar", [idProyecto, idUsuarioActor, codigoRolActor, idEmpresaActor]);
 }

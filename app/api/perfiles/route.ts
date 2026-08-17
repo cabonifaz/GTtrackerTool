@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const idCliente = idClienteParam ? Number(idClienteParam) : null;
 
   try {
-    const perfiles = await listarPerfiles(idCliente);
+    const perfiles = await listarPerfiles(idCliente, session.user.idEmpresa!);
     return NextResponse.json(perfiles);
   } catch (err) {
     return handleApiError(err);
@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
       nombre,
       Number(tarifa),
       Number(idMoneda),
+      session.user.idEmpresa!,
       session.user.email ?? ""
     );
     return NextResponse.json(result[0], { status: 201 });

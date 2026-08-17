@@ -12,7 +12,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (session instanceof NextResponse) return session;
 
   try {
-    const asignados = await listarAsignados(Number(params.id));
+    const asignados = await listarAsignados(Number(params.id), session.user.idEmpresa!);
     return NextResponse.json(asignados);
   } catch (err) {
     return handleApiError(err);
@@ -30,6 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       idUsuario,
       Number(params.id),
       idPaisCalendario ? Number(idPaisCalendario) : null,
+      session.user.idEmpresa!,
       session.user.email ?? ""
     );
     return NextResponse.json({ ok: true }, { status: 201 });
@@ -67,7 +68,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   }
 
   try {
-    await desasignarTalento(Number(idUsuario), Number(params.id), session.user.email ?? "");
+    await desasignarTalento(Number(idUsuario), Number(params.id), session.user.idEmpresa!, session.user.email ?? "");
     return NextResponse.json({ ok: true });
   } catch (err) {
     return handleApiError(err);

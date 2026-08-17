@@ -21,7 +21,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   try {
-    await aprobarAusencia(Number(params.id), evidencia, evidenciaTipo, session.user.email ?? "");
+    await aprobarAusencia(Number(params.id), evidencia, evidenciaTipo, session.user.idEmpresa!, session.user.email ?? "");
     return NextResponse.json({ ok: true });
   } catch (err) {
     return handleApiError(err);

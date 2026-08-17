@@ -6,6 +6,7 @@ export function crearPerfil(
   nombre: string,
   tarifa: number,
   idMoneda: number,
+  idEmpresaActor: number,
   creadoPor: string
 ) {
   return executeProcedure<{ id_perfil: number }>("sp_perfil_crear", [
@@ -13,6 +14,7 @@ export function crearPerfil(
     nombre,
     tarifa,
     idMoneda,
+    idEmpresaActor,
     creadoPor,
   ]);
 }
@@ -21,23 +23,24 @@ export function editarTarifaPerfil(
   idPerfil: number,
   tarifa: number,
   idMoneda: number,
+  idEmpresaActor: number,
   modificadoPor: string
 ) {
-  return executeProcedure("sp_perfil_editar_tarifa", [idPerfil, tarifa, idMoneda, modificadoPor]);
+  return executeProcedure("sp_perfil_editar_tarifa", [idPerfil, tarifa, idMoneda, idEmpresaActor, modificadoPor]);
 }
 
-export function editarNombrePerfil(idPerfil: number, nombre: string, modificadoPor: string) {
-  return executeProcedure("sp_perfil_editar_nombre", [idPerfil, nombre, modificadoPor]);
+export function editarNombrePerfil(idPerfil: number, nombre: string, idEmpresaActor: number, modificadoPor: string) {
+  return executeProcedure("sp_perfil_editar_nombre", [idPerfil, nombre, idEmpresaActor, modificadoPor]);
 }
 
-export function desactivarPerfil(idPerfil: number, modificadoPor: string) {
-  return executeProcedure("sp_perfil_desactivar", [idPerfil, modificadoPor]);
+export function desactivarPerfil(idPerfil: number, idEmpresaActor: number, modificadoPor: string) {
+  return executeProcedure("sp_perfil_desactivar", [idPerfil, idEmpresaActor, modificadoPor]);
 }
 
-export function listarPerfiles(idCliente: number | null) {
-  return executeProcedure<Perfil>("sp_perfil_listar", [idCliente]);
+export function listarPerfiles(idCliente: number | null, idEmpresaActor: number) {
+  return executeProcedure<Perfil>("sp_perfil_listar", [idCliente, idEmpresaActor]);
 }
 
-export function historialTarifasPerfil(idPerfil: number) {
-  return executeProcedure<PerfilTarifaHistorico>("sp_perfil_historial_tarifas", [idPerfil]);
+export function historialTarifasPerfil(idPerfil: number, idEmpresaActor: number) {
+  return executeProcedure<PerfilTarifaHistorico>("sp_perfil_historial_tarifas", [idPerfil, idEmpresaActor]);
 }

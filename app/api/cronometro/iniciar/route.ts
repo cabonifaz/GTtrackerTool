@@ -19,7 +19,8 @@ export async function POST(req: NextRequest) {
       descripcion ?? null,
       session.user.email ?? "",
       session.user.rol,
-      fechaInicio ?? null
+      fechaInicio ?? null,
+      session.user.idEmpresa!
     );
     return NextResponse.json(result[0], { status: 201 });
   } catch (err) {

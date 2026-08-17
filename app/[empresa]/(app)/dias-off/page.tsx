@@ -13,14 +13,15 @@ export default async function DiasOffPage() {
   const session = await getServerSession(authOptions);
   const idUsuario = session!.user.idUsuario;
   const esAdmin = session!.user.rol === "ADMIN";
+  const idEmpresa = session!.user.idEmpresa!;
   const anioActual = new Date().getFullYear();
 
   const [tipos, misAusencias, saldo, pendientes, talentos] = await Promise.all([
     listarMaestro("TIPO_AUSENCIA"),
     esAdmin ? Promise.resolve([]) : listarAusenciasPorUsuario(idUsuario),
-    esAdmin ? Promise.resolve(null) : obtenerSaldoVacaciones(idUsuario, anioActual),
-    esAdmin ? listarAusenciasTodas(null, "PENDIENTE") : Promise.resolve([]),
-    esAdmin ? listarUsuarios() : Promise.resolve([]),
+    esAdmin ? Promise.resolve(null) : obtenerSaldoVacaciones(idUsuario, anioActual, idEmpresa),
+    esAdmin ? listarAusenciasTodas(null, "PENDIENTE", idEmpresa) : Promise.resolve([]),
+    esAdmin ? listarUsuarios(idEmpresa) : Promise.resolve([]),
   ]);
 
   return (

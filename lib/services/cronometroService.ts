@@ -11,7 +11,8 @@ export function iniciarCronometro(
   descripcion: string | null,
   creadoPor: string,
   codigoRolActor: CodigoRol,
-  fechaInicio: string | null = null
+  fechaInicio: string | null,
+  idEmpresaActor: number
 ) {
   return executeProcedure<{ id_registro: number; id_tarea: number }>("sp_cronometro_iniciar", [
     idUsuario,
@@ -22,6 +23,7 @@ export function iniciarCronometro(
     creadoPor,
     codigoRolActor,
     fechaInicio,
+    idEmpresaActor,
   ]);
 }
 
@@ -61,7 +63,8 @@ export function crearRegistroManual(
   fechaFin: string,
   descripcion: string | null,
   creadoPor: string,
-  codigoRolActor: CodigoRol
+  codigoRolActor: CodigoRol,
+  idEmpresaActor: number
 ) {
   return executeProcedure<{ id_registro: number; id_tarea: number; actualizado: number }>(
     "sp_registro_tiempo_crear_manual",
@@ -75,6 +78,7 @@ export function crearRegistroManual(
       descripcion,
       creadoPor,
       codigoRolActor,
+      idEmpresaActor,
     ]
   );
 }
@@ -86,7 +90,8 @@ export function editarRegistroTiempo(
   descripcion: string | null,
   modificadoPor: string,
   idUsuarioActor: number,
-  codigoRolActor: CodigoRol
+  codigoRolActor: CodigoRol,
+  idEmpresaActor: number
 ) {
   return executeProcedure("sp_registro_tiempo_editar", [
     idRegistro,
@@ -96,6 +101,7 @@ export function editarRegistroTiempo(
     modificadoPor,
     idUsuarioActor,
     codigoRolActor,
+    idEmpresaActor,
   ]);
 }
 
@@ -103,12 +109,14 @@ export function eliminarRegistroTiempo(
   idRegistro: number,
   modificadoPor: string,
   idUsuarioActor: number,
-  codigoRolActor: CodigoRol
+  codigoRolActor: CodigoRol,
+  idEmpresaActor: number
 ) {
   return executeProcedure("sp_registro_tiempo_eliminar", [
     idRegistro,
     modificadoPor,
     idUsuarioActor,
     codigoRolActor,
+    idEmpresaActor,
   ]);
 }

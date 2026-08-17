@@ -21,9 +21,10 @@ DELIMITER $$
 
 DROP PROCEDURE IF EXISTS sp_reporte_proyeccion_cliente $$
 CREATE PROCEDURE sp_reporte_proyeccion_cliente(
-  IN p_id_cliente     INT UNSIGNED,
-  IN p_meses_atras    INT UNSIGNED,
-  IN p_meses_adelante INT UNSIGNED
+  IN p_id_cliente       INT UNSIGNED,
+  IN p_meses_atras      INT UNSIGNED,
+  IN p_meses_adelante   INT UNSIGNED,
+  IN p_id_empresa_actor INT UNSIGNED
 )
 BEGIN
   DECLARE v_mes_cursor DATE;
@@ -37,6 +38,10 @@ BEGIN
 
   IF p_meses_atras + p_meses_adelante > 36 THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El rango de meses no puede superar 36';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM clientes WHERE id_cliente = p_id_cliente AND id_empresa = p_id_empresa_actor) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cliente no encontrado';
   END IF;
 
   DROP TEMPORARY TABLE IF EXISTS tmp_proyeccion;

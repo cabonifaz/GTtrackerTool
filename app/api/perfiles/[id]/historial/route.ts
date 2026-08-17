@@ -7,7 +7,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (session instanceof NextResponse) return session;
 
   try {
-    const historial = await historialTarifasPerfil(Number(params.id));
+    const historial = await historialTarifasPerfil(Number(params.id), session.user.idEmpresa!);
     return NextResponse.json(historial);
   } catch (err) {
     return handleApiError(err);

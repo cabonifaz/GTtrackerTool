@@ -5,7 +5,7 @@ import { validarApiKey } from "@/lib/services/usuarioSistemaService";
 /** Autentica una request de /api/v1/* usando cabeceras x-api-key / x-api-secret. */
 export async function requireApiKey(
   req: NextRequest
-): Promise<{ idUsuarioSistema: number; nombreSistema: string } | NextResponse> {
+): Promise<{ idUsuarioSistema: number; nombreSistema: string; idEmpresa: number } | NextResponse> {
   const apiKey = req.headers.get("x-api-key");
   const apiSecret = req.headers.get("x-api-secret");
 
@@ -26,5 +26,9 @@ export async function requireApiKey(
     return NextResponse.json({ error: "api secret invalido" }, { status: 401 });
   }
 
-  return { idUsuarioSistema: cuenta.id_usuario_sistema, nombreSistema: cuenta.nombre_sistema };
+  return {
+    idUsuarioSistema: cuenta.id_usuario_sistema,
+    nombreSistema: cuenta.nombre_sistema,
+    idEmpresa: cuenta.id_empresa,
+  };
 }

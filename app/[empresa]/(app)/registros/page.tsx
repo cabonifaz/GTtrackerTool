@@ -18,13 +18,14 @@ export default async function RegistrosPage() {
   const session = await getServerSession(authOptions);
   const idUsuario = session!.user.idUsuario;
   const rol = session!.user.rol;
+  const idEmpresa = session!.user.idEmpresa!;
   const fechaInicio = primerDiaMes();
   const fechaFin = hoy();
 
   const [proyectos, tareas, filas] = await Promise.all([
-    listarProyectos(idUsuario, rol),
-    listarTareas(null, idUsuario, rol),
-    reporteHorasDetalle([idUsuario], fechaInicio, fechaFin),
+    listarProyectos(idUsuario, rol, idEmpresa),
+    listarTareas(null, idUsuario, rol, idEmpresa),
+    reporteHorasDetalle([idUsuario], fechaInicio, fechaFin, idEmpresa),
   ]);
 
   return (

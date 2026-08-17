@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const usuarios = await listarUsuarios();
+    const usuarios = await listarUsuarios(session.user.idEmpresa);
     const usuario = usuarios.find((u) => u.id_usuario === Number(idUsuario));
     if (!usuario || !usuario.activo) {
       return NextResponse.json({ error: "Ese talento no esta activo" }, { status: 400 });
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
           {
             title: "Actualiza tus horas",
             body: "Tu avance de horas registradas esta por debajo de lo esperado este mes. Registra tus horas pendientes.",
-            url: "/cronometro",
+            url: `/${session.user.empresaSlug}/cronometro`,
           }
         );
         enviados++;

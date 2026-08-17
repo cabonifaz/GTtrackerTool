@@ -7,7 +7,7 @@ export async function GET() {
   if (session instanceof NextResponse) return session;
 
   try {
-    const proyectos = await listarProyectos(session.user.idUsuario, session.user.rol);
+    const proyectos = await listarProyectos(session.user.idUsuario, session.user.rol, session.user.idEmpresa!);
     return NextResponse.json(proyectos);
   } catch (err) {
     return handleApiError(err);
@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
       idCliente ?? null,
       nombre,
       descripcion ?? null,
+      session.user.idEmpresa!,
       session.user.email ?? ""
     );
     return NextResponse.json(result[0], { status: 201 });

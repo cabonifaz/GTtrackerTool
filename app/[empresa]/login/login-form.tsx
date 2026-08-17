@@ -4,7 +4,19 @@ import { useState, FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
-export default function LoginPage() {
+export default function LoginForm({
+  slug,
+  empresaNombre,
+  tieneLogo,
+  colorPrimario,
+  suspendida,
+}: {
+  slug: string;
+  empresaNombre: string;
+  tieneLogo: boolean;
+  colorPrimario: string;
+  suspendida: boolean;
+}) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,6 +31,7 @@ export default function LoginPage() {
     const result = await signIn("credentials", {
       email,
       password,
+      slug,
       redirect: false,
     });
 
@@ -29,7 +42,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/cronometro");
+    router.push(`/${slug}/cronometro`);
     router.refresh();
   }
 
@@ -39,10 +52,20 @@ export default function LoginPage() {
         onSubmit={handleSubmit}
         className="w-full max-w-sm bg-white rounded-xl shadow-sm border border-gray-200 p-8 space-y-5"
       >
-        <div>
-          <h1 className="text-xl font-semibold">Clonclokify</h1>
+        <div className="space-y-2">
+          {tieneLogo && (
+            // eslint-disable-next-line @next/next/no-img-element -- logo binario servido desde la DB
+            <img src={`/${slug}/logo`} alt={empresaNombre} className="h-8 w-auto" />
+          )}
+          <h1 className="text-xl font-semibold">{empresaNombre}</h1>
           <p className="text-sm text-gray-500">Inicia sesion para continuar</p>
         </div>
+
+        {suspendida && (
+          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+            Esta cuenta esta suspendida. Contacta a soporte si crees que es un error.
+          </p>
+        )}
 
         {error && (
           <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
@@ -81,7 +104,8 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={cargando}
-          className="w-full rounded-md bg-gray-900 text-white text-sm font-medium py-2 disabled:opacity-50"
+          className="w-full rounded-md text-white text-sm font-medium py-2 disabled:opacity-50"
+          style={{ backgroundColor: colorPrimario }}
         >
           {cargando ? "Ingresando..." : "Ingresar"}
         </button>

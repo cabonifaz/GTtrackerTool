@@ -7,7 +7,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (session instanceof NextResponse) return session;
 
   try {
-    const fila = await obtenerEvidenciaAusencia(Number(params.id));
+    const fila = await obtenerEvidenciaAusencia(Number(params.id), session.user.idEmpresa!);
     if (!fila || !fila.evidencia) {
       return NextResponse.json({ error: "Sin evidencia" }, { status: 404 });
     }
