@@ -279,15 +279,27 @@ DROP PROCEDURE IF EXISTS sp_tarea_desactivar $$
 CREATE PROCEDURE sp_tarea_desactivar(
   IN p_id_tarea         INT UNSIGNED,
   IN p_id_empresa_actor INT UNSIGNED,
+  IN p_id_usuario_actor INT UNSIGNED,
+  IN p_codigo_rol_actor VARCHAR(50),
   IN p_modificado_por   VARCHAR(150)
 )
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM tareas t
-    JOIN proyectos pr ON pr.id_proyecto = t.id_proyecto
-    WHERE t.id_tarea = p_id_tarea AND pr.id_empresa = p_id_empresa_actor
-  ) THEN
+  DECLARE v_id_proyecto INT UNSIGNED;
+
+  SELECT t.id_proyecto INTO v_id_proyecto
+  FROM tareas t
+  JOIN proyectos pr ON pr.id_proyecto = t.id_proyecto
+  WHERE t.id_tarea = p_id_tarea AND pr.id_empresa = p_id_empresa_actor;
+
+  IF v_id_proyecto IS NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Tarea no encontrada';
+  END IF;
+
+  IF p_codigo_rol_actor <> 'ADMIN' AND NOT EXISTS (
+    SELECT 1 FROM usuarios_proyectos
+    WHERE id_usuario = p_id_usuario_actor AND id_proyecto = v_id_proyecto AND activo = 1
+  ) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No tienes ese proyecto asignado';
   END IF;
 
   UPDATE tareas
@@ -377,6 +389,37 @@ BEGIN
       AND (p_id_proyecto IS NULL OR t.id_proyecto = p_id_proyecto)
     ORDER BY t.fecha_creacion DESC;
   END IF;
+END $$
+
+-- Tareas en las que alguno de los talentos indicados registro tiempo
+-- (no las tareas de sus proyectos asignados en general -- especificamente
+-- donde ya trabajaron). Solo para el panel de busqueda del Admin;
+-- p_ids_usuario nunca debe llegar vacio (se valida en la capa de app).
+DROP PROCEDURE IF EXISTS sp_tarea_listar_por_talentos $$
+CREATE PROCEDURE sp_tarea_listar_por_talentos(
+  IN p_ids_usuario      VARCHAR(1000),
+  IN p_id_empresa_actor INT UNSIGNED
+)
+BEGIN
+  SELECT t.id_tarea, t.id_proyecto, pr.nombre AS proyecto, t.nombre, t.descripcion,
+         e.codigo AS codigo_estado, e.valor AS estado, t.activo, t.fecha_creacion,
+         COALESCE(tot.total_segundos, 0) AS total_segundos
+  FROM tareas t
+  JOIN proyectos pr ON pr.id_proyecto = t.id_proyecto
+  JOIN maestro e ON e.id_maestro = t.id_estado
+  LEFT JOIN (
+    SELECT id_tarea, SUM(duracion_segundos) AS total_segundos
+    FROM registros_tiempo
+    WHERE activo = 1
+    GROUP BY id_tarea
+  ) tot ON tot.id_tarea = t.id_tarea
+  WHERE t.activo = 1
+    AND pr.id_empresa = p_id_empresa_actor
+    AND EXISTS (
+      SELECT 1 FROM registros_tiempo rt
+      WHERE rt.id_tarea = t.id_tarea AND rt.activo = 1 AND FIND_IN_SET(rt.id_usuario, p_ids_usuario) > 0
+    )
+  ORDER BY t.fecha_creacion DESC;
 END $$
 
 DELIMITER ;

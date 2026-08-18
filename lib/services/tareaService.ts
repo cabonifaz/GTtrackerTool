@@ -39,8 +39,20 @@ export function editarTarea(
   ]);
 }
 
-export function desactivarTarea(idTarea: number, idEmpresaActor: number, modificadoPor: string) {
-  return executeProcedure("sp_tarea_desactivar", [idTarea, idEmpresaActor, modificadoPor]);
+export function desactivarTarea(
+  idTarea: number,
+  idEmpresaActor: number,
+  idUsuarioActor: number,
+  codigoRolActor: CodigoRol,
+  modificadoPor: string
+) {
+  return executeProcedure("sp_tarea_desactivar", [
+    idTarea,
+    idEmpresaActor,
+    idUsuarioActor,
+    codigoRolActor,
+    modificadoPor,
+  ]);
 }
 
 export function finalizarTarea(
@@ -66,4 +78,9 @@ export function listarTareas(
   idEmpresaActor: number
 ) {
   return executeProcedure<Tarea>("sp_tarea_listar", [idProyecto, idUsuarioActor, codigoRolActor, idEmpresaActor]);
+}
+
+export function listarTareasPorTalentos(idsUsuario: number[], idEmpresaActor: number) {
+  const idsCsv = idsUsuario.join(",");
+  return executeProcedure<Tarea>("sp_tarea_listar_por_talentos", [idsCsv, idEmpresaActor]);
 }

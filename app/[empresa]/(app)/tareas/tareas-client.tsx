@@ -50,6 +50,12 @@ export default function TareasClient({
   const [finalizandoTarea, setFinalizandoTarea] = useState<number | null>(null);
   const [eliminandoTarea, setEliminandoTarea] = useState<number | null>(null);
 
+  // Busqueda de tareas por talento(s), solo Admin -- no se trae la lista
+  // completa por defecto (ver comentario en page.tsx), se busca a pedido.
+  const [talentosFiltro, setTalentosFiltro] = useState<Set<number>>(new Set());
+  const [tareasFiltradas, setTareasFiltradas] = useState<Tarea[] | null>(null);
+  const [buscandoTareasFiltradas, setBuscandoTareasFiltradas] = useState(false);
+
   // Asignacion de talentos a proyectos (solo Admin)
   const [talentos] = useState<Usuario[]>(talentosIniciales.filter((u) => u.codigo_rol === "TALENTO"));
   const [panelAbierto, setPanelAbierto] = useState<number | null>(null);
@@ -291,7 +297,35 @@ export default function TareasClient({
       return;
     }
     await cargarTodo();
+    setTareasFiltradas((prev) =>
+      prev
+        ? prev.map((t) => (t.id_tarea === idTarea ? { ...t, estado: "Finalizada", codigo_estado: "FINALIZADA" } : t))
+        : prev
+    );
     setFinalizandoTarea(null);
+  }
+
+  function alternarTalentoFiltro(idUsuario: number) {
+    setTalentosFiltro((prev) => {
+      const next = new Set(prev);
+      if (next.has(idUsuario)) next.delete(idUsuario);
+      else next.add(idUsuario);
+      return next;
+    });
+  }
+
+  async function buscarTareasPorTalentos() {
+    if (talentosFiltro.size === 0) return;
+    setError(null);
+    setBuscandoTareasFiltradas(true);
+    try {
+      const ids = Array.from(talentosFiltro).join(",");
+      setTareasFiltradas(await fetchJson<Tarea[]>(`/api/tareas/por-talentos?idsUsuario=${ids}`));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudieron buscar las tareas");
+    } finally {
+      setBuscandoTareasFiltradas(false);
+    }
   }
 
   async function eliminarTareaAccion(idTarea: number) {
@@ -304,6 +338,7 @@ export default function TareasClient({
       return;
     }
     setTareas((prev) => prev.filter((t) => t.id_tarea !== idTarea));
+    setTareasFiltradas((prev) => (prev ? prev.filter((t) => t.id_tarea !== idTarea) : prev));
     setEliminandoTarea(null);
   }
 
@@ -436,6 +471,48 @@ export default function TareasClient({
       };
     });
     setGuardandoPerfilAsignacion(null);
+  }
+
+  function renderListaTareas(lista: Tarea[]) {
+    return (
+      <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
+        {lista.map((t) => (
+          <li key={t.id_tarea} className="px-4 py-3 text-sm flex justify-between items-center gap-2">
+            <span>
+              {t.nombre}
+              <span className="text-gray-400"> · {t.proyecto}</span>
+            </span>
+            <span className="flex items-center gap-3">
+              <span className="text-xs text-gray-400 font-mono tabular-nums">
+                {formatearHorasMin(Number(t.total_segundos))} · {(Number(t.total_segundos) / 3600).toFixed(2)} h
+              </span>
+              <span className="text-gray-500">{t.estado}</span>
+              {t.codigo_estado !== "FINALIZADA" && (
+                <button
+                  onClick={() => finalizarTareaAccion(t.id_tarea)}
+                  disabled={finalizandoTarea === t.id_tarea}
+                  className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-900 underline disabled:opacity-50"
+                >
+                  {finalizandoTarea === t.id_tarea && <Spinner className="h-3 w-3" />}
+                  Finalizar
+                </button>
+              )}
+              <button
+                onClick={() => eliminarTareaAccion(t.id_tarea)}
+                disabled={eliminandoTarea === t.id_tarea}
+                className="inline-flex items-center gap-1.5 text-gray-500 hover:text-red-600 underline disabled:opacity-50"
+              >
+                {eliminandoTarea === t.id_tarea && <Spinner className="h-3 w-3" />}
+                Eliminar
+              </button>
+            </span>
+          </li>
+        ))}
+        {lista.length === 0 && (
+          <li className="px-4 py-6 text-sm text-center text-gray-400">Sin tareas registradas</li>
+        )}
+      </ul>
+    );
   }
 
   const tabs: { id: Tab; label: string }[] = [
@@ -699,46 +776,44 @@ export default function TareasClient({
                   Agregar
                 </button>
               </form>
-              <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
-                {tareas.map((t) => (
-                  <li key={t.id_tarea} className="px-4 py-3 text-sm flex justify-between items-center gap-2">
-                    <span>
-                      {t.nombre}
-                      <span className="text-gray-400"> · {t.proyecto}</span>
-                    </span>
-                    <span className="flex items-center gap-3">
-                      <span className="text-xs text-gray-400 font-mono tabular-nums">
-                        {formatearHorasMin(Number(t.total_segundos))} ·{" "}
-                        {(Number(t.total_segundos) / 3600).toFixed(2)} h
-                      </span>
-                      <span className="text-gray-500">{t.estado}</span>
-                      {t.codigo_estado !== "FINALIZADA" && (
-                        <button
-                          onClick={() => finalizarTareaAccion(t.id_tarea)}
-                          disabled={finalizandoTarea === t.id_tarea}
-                          className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-900 underline disabled:opacity-50"
-                        >
-                          {finalizandoTarea === t.id_tarea && <Spinner className="h-3 w-3" />}
-                          Finalizar
-                        </button>
-                      )}
-                      {esAdmin && (
-                        <button
-                          onClick={() => eliminarTareaAccion(t.id_tarea)}
-                          disabled={eliminandoTarea === t.id_tarea}
-                          className="inline-flex items-center gap-1.5 text-gray-500 hover:text-red-600 underline disabled:opacity-50"
-                        >
-                          {eliminandoTarea === t.id_tarea && <Spinner className="h-3 w-3" />}
-                          Eliminar
-                        </button>
-                      )}
-                    </span>
-                  </li>
-                ))}
-                {tareas.length === 0 && (
-                  <li className="px-4 py-6 text-sm text-center text-gray-400">Sin tareas registradas</li>
-                )}
-              </ul>
+              {esAdmin ? (
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
+                    <p className="text-sm font-medium">Buscar tareas por talento</p>
+                    <div className="flex flex-wrap gap-3">
+                      {talentos.map((u) => (
+                        <label key={u.id_usuario} className="flex items-center gap-1.5 text-sm text-gray-600">
+                          <input
+                            type="checkbox"
+                            checked={talentosFiltro.has(u.id_usuario)}
+                            onChange={() => alternarTalentoFiltro(u.id_usuario)}
+                          />
+                          {u.nombres} {u.apellidos}
+                        </label>
+                      ))}
+                      {talentos.length === 0 && <p className="text-sm text-gray-400">No hay talentos registrados</p>}
+                    </div>
+                    <button
+                      onClick={buscarTareasPorTalentos}
+                      disabled={buscandoTareasFiltradas || talentosFiltro.size === 0}
+                      className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+                    >
+                      {buscandoTareasFiltradas && <Spinner />}
+                      Buscar
+                    </button>
+                  </div>
+
+                  {tareasFiltradas === null ? (
+                    <p className="text-sm text-gray-400 text-center py-6">
+                      Selecciona uno o mas talentos y busca para ver sus tareas.
+                    </p>
+                  ) : (
+                    renderListaTareas(tareasFiltradas)
+                  )}
+                </div>
+              ) : (
+                renderListaTareas(tareas)
+              )}
             </div>
           )}
 

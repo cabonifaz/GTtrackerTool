@@ -18,7 +18,10 @@ export default async function TareasPage() {
   const [clientes, proyectos, tareas, talentos, paisesCalendario, monedas, perfiles] = await Promise.all([
     listarClientes(idUsuario, rol, idEmpresa),
     listarProyectos(idUsuario, rol, idEmpresa),
-    listarTareas(null, idUsuario, rol, idEmpresa),
+    // Para Admin, la lista de tareas se busca por talento(s) desde el
+    // cliente (ver TareasClient) en vez de traer todas de una, que puede
+    // ser una lista enorme sin ningun filtro util.
+    esAdmin ? Promise.resolve([]) : listarTareas(null, idUsuario, rol, idEmpresa),
     esAdmin ? listarUsuarios(idEmpresa) : Promise.resolve([]),
     esAdmin ? listarMaestro("PAIS_CALENDARIO") : Promise.resolve([]),
     esAdmin ? listarMaestro("MONEDA") : Promise.resolve([]),
