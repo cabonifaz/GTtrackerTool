@@ -7,6 +7,7 @@ import { signOut } from "next-auth/react";
 import { CodigoRol } from "@/lib/types";
 import SyncStatus from "@/components/SyncStatus";
 import PushToggle from "@/components/PushToggle";
+import TenantLogo from "@/components/TenantLogo";
 
 const links: { href: string; label: string; adminOnly?: boolean }[] = [
   { href: "cronometro", label: "Cronometro" },
@@ -67,8 +68,7 @@ export default function NavBar({
 
         <div className="hidden sm:flex items-center gap-3">
           {tieneLogo ? (
-            // eslint-disable-next-line @next/next/no-img-element -- logo binario servido desde la DB, no un asset optimizable de next/image
-            <img src={`${base}/logo`} alt={empresaNombre} className="h-7 w-auto" />
+            <TenantLogo slug={empresaSlug} alt={empresaNombre} className="h-8 w-32" />
           ) : (
             <span className="text-sm font-semibold text-gray-700">{empresaNombre}</span>
           )}

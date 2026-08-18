@@ -3,6 +3,7 @@
 import { useState, FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import TenantLogo from "@/components/TenantLogo";
 
 export default function LoginForm({
   slug,
@@ -60,12 +61,7 @@ export default function LoginForm({
       >
         <div className="flex flex-col items-center text-center gap-2">
           {tieneLogo && (
-            // eslint-disable-next-line @next/next/no-img-element -- logo binario servido desde la DB
-            <img
-              src={`/${slug}/logo`}
-              alt={empresaNombre}
-              className={mostrarNombre ? "h-12 w-auto" : "h-20 w-auto"}
-            />
+            <TenantLogo slug={slug} alt={empresaNombre} className={mostrarNombre ? "h-14 w-40" : "h-20 w-56"} />
           )}
           {mostrarNombre && <h1 className="text-xl font-semibold">{empresaNombre}</h1>}
           <p className="text-xs text-gray-400">

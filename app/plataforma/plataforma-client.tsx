@@ -4,6 +4,7 @@ import { useState, FormEvent } from "react";
 import { signOut } from "next-auth/react";
 import { CodigoTipoPlanEmpresa, Empresa, MaestroItem, Usuario } from "@/lib/types";
 import { Spinner } from "@/components/Spinner";
+import TenantLogo from "@/components/TenantLogo";
 import { fetchJson } from "@/lib/fetchJson";
 
 function CamposPlan({
@@ -244,9 +245,29 @@ export default function PlataformaClient({
     }
   }
 
+  async function medirImagen(archivo: File): Promise<{ w: number; h: number }> {
+    const url = URL.createObjectURL(archivo);
+    try {
+      return await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+        img.onerror = () => reject(new Error("No se pudo leer la imagen"));
+        img.src = url;
+      });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
   async function subirLogo(idEmpresa: number, archivo: File) {
     marcar(`logo-${idEmpresa}`, true);
     try {
+      const { w, h } = await medirImagen(archivo);
+      if (w < 96 || h < 96) {
+        throw new Error(
+          `El logo mide ${w}x${h}px -- sube uno de al menos 96x96px para que no se vea borroso al ampliarlo`
+        );
+      }
       const form = new FormData();
       form.append("logo", archivo);
       const res = await fetch(`/api/plataforma/empresas/${idEmpresa}/logo`, { method: "POST", body: form });
@@ -408,8 +429,7 @@ export default function PlataformaClient({
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   {emp.tiene_logo ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={`/${emp.slug}/logo`} alt={emp.nombre} className="h-6 w-auto" />
+                    <TenantLogo slug={emp.slug} alt={emp.nombre} className="h-6 w-24" />
                   ) : (
                     <span
                       className="h-4 w-4 rounded-full inline-block"
