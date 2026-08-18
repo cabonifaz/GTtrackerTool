@@ -1,11 +1,20 @@
 import { executeProcedure } from "@/lib/db";
-import { Empresa } from "@/lib/types";
+import { CodigoTipoPlanEmpresa, Empresa } from "@/lib/types";
+
+export interface PlanEmpresaInput {
+  codigoTipoPlan: CodigoTipoPlanEmpresa;
+  limiteUsuarios: number | null;
+  tarifaPorUsuario: number | null;
+  codigoMoneda: string | null;
+  publicidadActiva: boolean;
+}
 
 export function crearEmpresa(
   nombre: string,
   slug: string,
   colorPrimario: string | null,
   colorSecundario: string | null,
+  plan: PlanEmpresaInput,
   creadoPor: string
 ) {
   return executeProcedure<{ id_empresa: number }>("sp_empresa_crear", [
@@ -13,6 +22,11 @@ export function crearEmpresa(
     slug,
     colorPrimario,
     colorSecundario,
+    plan.codigoTipoPlan,
+    plan.limiteUsuarios,
+    plan.tarifaPorUsuario,
+    plan.codigoMoneda,
+    plan.publicidadActiva ? 1 : 0,
     creadoPor,
   ]);
 }
@@ -22,9 +36,21 @@ export function editarEmpresa(
   nombre: string,
   colorPrimario: string | null,
   colorSecundario: string | null,
+  plan: PlanEmpresaInput,
   modificadoPor: string
 ) {
-  return executeProcedure("sp_empresa_editar", [idEmpresa, nombre, colorPrimario, colorSecundario, modificadoPor]);
+  return executeProcedure("sp_empresa_editar", [
+    idEmpresa,
+    nombre,
+    colorPrimario,
+    colorSecundario,
+    plan.codigoTipoPlan,
+    plan.limiteUsuarios,
+    plan.tarifaPorUsuario,
+    plan.codigoMoneda,
+    plan.publicidadActiva ? 1 : 0,
+    modificadoPor,
+  ]);
 }
 
 export function actualizarLogoEmpresa(idEmpresa: number, logo: Buffer, logoTipo: string, modificadoPor: string) {

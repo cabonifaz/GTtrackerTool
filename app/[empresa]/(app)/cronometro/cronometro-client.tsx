@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Feriado, Proyecto, RegistroActivo, Tarea, UltimaTarea } from "@/lib/types";
 import { CargandoInline, Spinner } from "@/components/Spinner";
+import AdSlot from "@/components/AdSlot";
 import { CronometroLocal, guardarEstadoLocal } from "@/lib/offline/db";
 import { iniciarLocal, obtenerEstadoLocalActivo, pausarLocal, useSyncStatus } from "@/lib/offline/sync";
 
@@ -35,6 +36,7 @@ export default function CronometroClient({
   ultimaTareaInicial,
   idProyectoInicial,
   feriadoProximoInicial,
+  publicidadActiva,
 }: {
   proyectosIniciales: Proyecto[];
   tareasIniciales: Tarea[];
@@ -42,6 +44,7 @@ export default function CronometroClient({
   ultimaTareaInicial: UltimaTarea | null;
   idProyectoInicial: string;
   feriadoProximoInicial: Feriado | null;
+  publicidadActiva: boolean;
 }) {
   const [proyectos] = useState<Proyecto[]>(proyectosIniciales);
   const [tareas] = useState<Tarea[]>(tareasIniciales);
@@ -340,6 +343,8 @@ export default function CronometroClient({
           </div>
         </div>
       )}
+
+      {publicidadActiva && <AdSlot />}
     </div>
   );
 }

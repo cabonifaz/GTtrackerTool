@@ -24,6 +24,8 @@ CREATE PROCEDURE sp_usuario_crear(
 )
 BEGIN
   DECLARE v_id_rol INT UNSIGNED;
+  DECLARE v_limite_usuarios INT UNSIGNED;
+  DECLARE v_usuarios_activos INT UNSIGNED;
 
   IF EXISTS (SELECT 1 FROM usuarios WHERE email = p_email) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ya existe un usuario registrado con ese email';
@@ -45,6 +47,14 @@ BEGIN
   ELSE
     IF p_id_empresa IS NULL OR NOT EXISTS (SELECT 1 FROM empresas WHERE id_empresa = p_id_empresa AND activo = 1) THEN
       SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Empresa invalida';
+    END IF;
+
+    SELECT limite_usuarios INTO v_limite_usuarios FROM empresas WHERE id_empresa = p_id_empresa;
+    IF v_limite_usuarios IS NOT NULL THEN
+      SELECT COUNT(*) INTO v_usuarios_activos FROM usuarios WHERE id_empresa = p_id_empresa AND activo = 1;
+      IF v_usuarios_activos >= v_limite_usuarios THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La empresa alcanzo su limite de usuarios activos';
+      END IF;
     END IF;
   END IF;
 
@@ -102,12 +112,29 @@ CREATE PROCEDURE sp_usuario_activar(
   IN p_modificado_por   VARCHAR(150)
 )
 BEGIN
+  DECLARE v_id_empresa_usuario INT UNSIGNED;
+  DECLARE v_limite_usuarios INT UNSIGNED;
+  DECLARE v_usuarios_activos INT UNSIGNED;
+
   IF NOT EXISTS (
     SELECT 1 FROM usuarios
     WHERE id_usuario = p_id_usuario
       AND (p_id_empresa_actor IS NULL OR id_empresa = p_id_empresa_actor)
   ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Usuario no encontrado';
+  END IF;
+
+  SELECT id_empresa INTO v_id_empresa_usuario FROM usuarios WHERE id_usuario = p_id_usuario;
+
+  IF v_id_empresa_usuario IS NOT NULL THEN
+    SELECT limite_usuarios INTO v_limite_usuarios FROM empresas WHERE id_empresa = v_id_empresa_usuario;
+    IF v_limite_usuarios IS NOT NULL THEN
+      SELECT COUNT(*) INTO v_usuarios_activos
+      FROM usuarios WHERE id_empresa = v_id_empresa_usuario AND activo = 1;
+      IF v_usuarios_activos >= v_limite_usuarios THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La empresa alcanzo su limite de usuarios activos';
+      END IF;
+    END IF;
   END IF;
 
   UPDATE usuarios

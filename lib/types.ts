@@ -1,5 +1,7 @@
 export type CodigoRol = "SUPER_ADMIN" | "ADMIN" | "TALENTO";
 
+export type CodigoTipoPlanEmpresa = "PAGO_USUARIO" | "GRATIS_PUBLICIDAD";
+
 export interface Empresa {
   id_empresa: number;
   nombre: string;
@@ -10,6 +12,16 @@ export interface Empresa {
   suspendida: number;
   activo: number;
   fecha_creacion: string;
+  id_tipo_plan: number | null;
+  codigo_tipo_plan: CodigoTipoPlanEmpresa | null;
+  tipo_plan: string | null;
+  limite_usuarios: number | null;
+  tarifa_por_usuario: number | null;
+  id_moneda: number | null;
+  codigo_moneda: string | null;
+  moneda: string | null;
+  publicidad_activa: number;
+  usuarios_activos?: number;
 }
 
 export interface MaestroItem {

@@ -2,18 +2,132 @@
 
 import { useState, FormEvent } from "react";
 import { signOut } from "next-auth/react";
-import { Empresa, Usuario } from "@/lib/types";
+import { CodigoTipoPlanEmpresa, Empresa, MaestroItem, Usuario } from "@/lib/types";
 import { Spinner } from "@/components/Spinner";
 import { fetchJson } from "@/lib/fetchJson";
+
+function CamposPlan({
+  tiposPlan,
+  monedas,
+  planInicial,
+  limiteInicial,
+  tarifaInicial,
+  monedaInicial,
+  publicidadInicial,
+}: {
+  tiposPlan: MaestroItem[];
+  monedas: MaestroItem[];
+  planInicial: CodigoTipoPlanEmpresa;
+  limiteInicial?: number | null;
+  tarifaInicial?: number | null;
+  monedaInicial?: string | null;
+  publicidadInicial: boolean;
+}) {
+  const [plan, setPlan] = useState<CodigoTipoPlanEmpresa>(planInicial);
+  const [publicidadDefault, setPublicidadDefault] = useState(publicidadInicial);
+  const esPago = plan === "PAGO_USUARIO";
+
+  function cambiarPlan(nuevoPlan: CodigoTipoPlanEmpresa) {
+    setPlan(nuevoPlan);
+    setPublicidadDefault(nuevoPlan === "GRATIS_PUBLICIDAD");
+  }
+
+  return (
+    <>
+      <select
+        name="codigoTipoPlan"
+        value={plan}
+        onChange={(e) => cambiarPlan(e.target.value as CodigoTipoPlanEmpresa)}
+        className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+      >
+        {tiposPlan.map((t) => (
+          <option key={t.codigo} value={t.codigo}>
+            {t.valor}
+          </option>
+        ))}
+      </select>
+      {esPago && (
+        <>
+          <input
+            name="limiteUsuarios"
+            type="number"
+            min={1}
+            placeholder="Limite de usuarios"
+            defaultValue={limiteInicial ?? ""}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+          />
+          <input
+            name="tarifaPorUsuario"
+            type="number"
+            min={0}
+            step="0.01"
+            required
+            placeholder="Tarifa por usuario"
+            defaultValue={tarifaInicial ?? ""}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+          />
+          <select
+            name="codigoMoneda"
+            required
+            defaultValue={monedaInicial ?? ""}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+          >
+            <option value="" disabled>
+              Moneda
+            </option>
+            {monedas.map((m) => (
+              <option key={m.codigo} value={m.codigo}>
+                {m.codigo}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
+      <label className="flex items-center gap-1.5 text-sm text-gray-600">
+        <input key={plan} type="checkbox" name="publicidadActiva" defaultChecked={publicidadDefault} />
+        Mostrar publicidad
+      </label>
+    </>
+  );
+}
+
+function EtiquetaPlan({ emp }: { emp: Empresa }) {
+  if (!emp.codigo_tipo_plan) {
+    return (
+      <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
+        Sin plan configurado
+      </span>
+    );
+  }
+  const usuarios = `${emp.usuarios_activos ?? 0}${emp.limite_usuarios ? `/${emp.limite_usuarios}` : ""} usuarios`;
+  return (
+    <span className="flex items-center gap-2 flex-wrap">
+      <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+        {emp.codigo_tipo_plan === "PAGO_USUARIO"
+          ? `Pago por usuario · ${usuarios} · ${emp.tarifa_por_usuario} ${emp.codigo_moneda ?? ""}/usuario`
+          : `Gratis con publicidad · ${usuarios}`}
+      </span>
+      {emp.publicidad_activa === 1 && (
+        <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+          Publicidad activa
+        </span>
+      )}
+    </span>
+  );
+}
 
 export default function PlataformaClient({
   nombre,
   empresasIniciales,
   usuariosIniciales,
+  tiposPlan,
+  monedas,
 }: {
   nombre: string;
   empresasIniciales: Empresa[];
   usuariosIniciales: Usuario[];
+  tiposPlan: MaestroItem[];
+  monedas: MaestroItem[];
 }) {
   const [empresas, setEmpresas] = useState<Empresa[]>(empresasIniciales);
   const [usuarios, setUsuarios] = useState<Usuario[]>(usuariosIniciales);
@@ -21,9 +135,12 @@ export default function PlataformaClient({
   const [creandoEmpresa, setCreandoEmpresa] = useState(false);
   const [idsProcesando, setIdsProcesando] = useState<Set<string>>(new Set());
   const [adminForm, setAdminForm] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<number | null>(null);
   const [passwordGenerica, setPasswordGenerica] = useState<{ contexto: string; valor: string } | null>(
     null
   );
+
+  const planPorDefecto = tiposPlan[0]?.codigo as CodigoTipoPlanEmpresa | undefined;
 
   function marcar(id: string, activo: boolean) {
     setIdsProcesando((prev) => {
@@ -58,6 +175,11 @@ export default function PlataformaClient({
           slug: form.get("slug"),
           colorPrimario: form.get("colorPrimario"),
           colorSecundario: form.get("colorSecundario"),
+          codigoTipoPlan: form.get("codigoTipoPlan"),
+          limiteUsuarios: form.get("limiteUsuarios"),
+          tarifaPorUsuario: form.get("tarifaPorUsuario"),
+          codigoMoneda: form.get("codigoMoneda"),
+          publicidadActiva: form.get("publicidadActiva") === "on",
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
@@ -67,6 +189,37 @@ export default function PlataformaClient({
       setError(err instanceof Error ? err.message : "No se pudo crear la empresa");
     } finally {
       setCreandoEmpresa(false);
+    }
+  }
+
+  async function guardarEdicion(emp: Empresa, e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const formEl = e.currentTarget;
+    const form = new FormData(formEl);
+    marcar(`editar-${emp.id_empresa}`, true);
+    try {
+      const res = await fetch(`/api/plataforma/empresas/${emp.id_empresa}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre: form.get("nombre"),
+          colorPrimario: form.get("colorPrimario"),
+          colorSecundario: form.get("colorSecundario"),
+          codigoTipoPlan: form.get("codigoTipoPlan"),
+          limiteUsuarios: form.get("limiteUsuarios"),
+          tarifaPorUsuario: form.get("tarifaPorUsuario"),
+          codigoMoneda: form.get("codigoMoneda"),
+          publicidadActiva: form.get("publicidadActiva") === "on",
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setEditForm(null);
+      await recargar();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo actualizar la empresa");
+    } finally {
+      marcar(`editar-${emp.id_empresa}`, false);
     }
   }
 
@@ -195,31 +348,39 @@ export default function PlataformaClient({
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">Empresas</h2>
 
-        <form onSubmit={crearEmpresa} className="grid gap-2 sm:grid-cols-5">
-          <input name="nombre" required placeholder="Nombre" className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
-          <input
-            name="slug"
-            required
-            placeholder="slug-url"
-            pattern="[a-z0-9-]+"
-            title="Solo minusculas, numeros y guiones"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-          <input name="colorPrimario" type="color" defaultValue="#111827" className="h-9 rounded-md border border-gray-300" />
-          <input name="colorSecundario" type="color" defaultValue="#374151" className="h-9 rounded-md border border-gray-300" />
-          <button
-            disabled={creandoEmpresa}
-            className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
-          >
-            {creandoEmpresa && <Spinner />}
-            Crear empresa
-          </button>
-        </form>
+        {planPorDefecto && (
+          <form onSubmit={crearEmpresa} className="flex flex-wrap gap-2 items-center bg-gray-50 rounded-md p-3">
+            <input name="nombre" required placeholder="Nombre" className="rounded-md border border-gray-300 px-3 py-1.5 text-sm" />
+            <input
+              name="slug"
+              required
+              placeholder="slug-url"
+              pattern="[a-z0-9-]+"
+              title="Solo minusculas, numeros y guiones"
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+            />
+            <input name="colorPrimario" type="color" defaultValue="#111827" className="h-8 rounded-md border border-gray-300" />
+            <input name="colorSecundario" type="color" defaultValue="#374151" className="h-8 rounded-md border border-gray-300" />
+            <CamposPlan
+              tiposPlan={tiposPlan}
+              monedas={monedas}
+              planInicial={planPorDefecto}
+              publicidadInicial={planPorDefecto === "GRATIS_PUBLICIDAD"}
+            />
+            <button
+              disabled={creandoEmpresa}
+              className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-1.5 disabled:opacity-50"
+            >
+              {creandoEmpresa && <Spinner />}
+              Crear empresa
+            </button>
+          </form>
+        )}
 
         <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
           {empresas.map((emp) => (
             <li key={emp.id_empresa} className="px-4 py-3 text-sm space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   {emp.tiene_logo ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -232,11 +393,18 @@ export default function PlataformaClient({
                   )}
                   <span className="font-medium">{emp.nombre}</span>
                   <span className="text-gray-400">· /{emp.slug}</span>
+                  <EtiquetaPlan emp={emp} />
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={emp.suspendida ? "text-amber-600" : "text-green-600"}>
                     {emp.suspendida ? "Suspendida" : "Activa"}
                   </span>
+                  <button
+                    onClick={() => setEditForm(editForm === emp.id_empresa ? null : emp.id_empresa)}
+                    className="text-gray-500 hover:text-gray-900 underline"
+                  >
+                    Editar
+                  </button>
                   <button
                     onClick={() => alternarSuspension(emp)}
                     disabled={idsProcesando.has(`empresa-${emp.id_empresa}`)}
@@ -265,6 +433,48 @@ export default function PlataformaClient({
                   </label>
                 </div>
               </div>
+
+              {editForm === emp.id_empresa && (
+                <form
+                  onSubmit={(e) => guardarEdicion(emp, e)}
+                  className="flex flex-wrap gap-2 items-center bg-gray-50 rounded-md p-3"
+                >
+                  <input
+                    name="nombre"
+                    required
+                    defaultValue={emp.nombre}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                  />
+                  <input
+                    name="colorPrimario"
+                    type="color"
+                    defaultValue={emp.color_primario}
+                    className="h-8 rounded-md border border-gray-300"
+                  />
+                  <input
+                    name="colorSecundario"
+                    type="color"
+                    defaultValue={emp.color_secundario}
+                    className="h-8 rounded-md border border-gray-300"
+                  />
+                  <CamposPlan
+                    tiposPlan={tiposPlan}
+                    monedas={monedas}
+                    planInicial={(emp.codigo_tipo_plan ?? planPorDefecto) as CodigoTipoPlanEmpresa}
+                    limiteInicial={emp.limite_usuarios}
+                    tarifaInicial={emp.tarifa_por_usuario}
+                    monedaInicial={emp.codigo_moneda}
+                    publicidadInicial={emp.publicidad_activa === 1}
+                  />
+                  <button
+                    disabled={idsProcesando.has(`editar-${emp.id_empresa}`)}
+                    className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-3 py-1.5 disabled:opacity-50"
+                  >
+                    {idsProcesando.has(`editar-${emp.id_empresa}`) && <Spinner />}
+                    Guardar
+                  </button>
+                </form>
+              )}
 
               {adminForm === emp.id_empresa && (
                 <form

@@ -4,21 +4,23 @@ import { listarProyectos, listarMisProyectos } from "@/lib/services/proyectoServ
 import { listarTareas } from "@/lib/services/tareaService";
 import { obtenerCronometroActivo, obtenerUltimaTarea } from "@/lib/services/cronometroService";
 import { listarFeriadosProximos } from "@/lib/services/feriadoService";
+import { obtenerEmpresaPorSlug } from "@/lib/services/empresaService";
 import { Feriado } from "@/lib/types";
 import CronometroClient from "./cronometro-client";
 
-export default async function CronometroPage() {
+export default async function CronometroPage({ params }: { params: { empresa: string } }) {
   const session = await getServerSession(authOptions);
   const idUsuario = session!.user.idUsuario;
   const rol = session!.user.rol;
   const idEmpresa = session!.user.idEmpresa!;
 
-  const [proyectos, tareas, activoServidor, ultimaTarea, misProyectos] = await Promise.all([
+  const [proyectos, tareas, activoServidor, ultimaTarea, misProyectos, empresa] = await Promise.all([
     listarProyectos(idUsuario, rol, idEmpresa),
     listarTareas(null, idUsuario, rol, idEmpresa),
     obtenerCronometroActivo(idUsuario),
     obtenerUltimaTarea(idUsuario),
     listarMisProyectos(idUsuario),
+    obtenerEmpresaPorSlug(params.empresa),
   ]);
 
   const predeterminado = misProyectos.find((p) => p.predeterminado === 1);
@@ -42,6 +44,7 @@ export default async function CronometroPage() {
       ultimaTareaInicial={ultimaTarea}
       idProyectoInicial={predeterminado ? String(predeterminado.id_proyecto) : ""}
       feriadoProximoInicial={feriadoProximo}
+      publicidadActiva={empresa?.publicidad_activa === 1}
     />
   );
 }
