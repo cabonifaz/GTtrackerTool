@@ -43,6 +43,23 @@ const nextConfig = {
   // Permite levantar un build de prueba aislado (ej. para probar push
   // notifications) sin pisar el .next que usa `npm run dev`.
   distDir: process.env.NEXT_DIST_DIR || ".next",
+
+  // Headers de seguridad en todas las respuestas. HSTS fuerza HTTPS en el
+  // navegador para las proximas visitas (Railway ya sirve todo por TLS);
+  // el resto endurece contra clickjacking y sniffing de tipo MIME.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        ],
+      },
+    ];
+  },
 };
 
 export default withPWA(nextConfig);

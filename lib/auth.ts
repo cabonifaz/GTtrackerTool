@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { obtenerUsuarioPorEmail } from "@/lib/services/usuarioService";
 import { CodigoRol } from "@/lib/types";
+import { estaBloqueado, registrarIntentoFallido, registrarLoginExitoso } from "@/lib/rateLimiter";
 
 // Un unico NextAuth sirve tanto el login por tenant (/[empresa]/login, con
 // slug) como el del Super Admin (/plataforma/login, sin slug). El slug
@@ -24,19 +25,38 @@ export const authOptions: AuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials.password) return null;
 
+        // Bloqueo por fuerza bruta: se revisa antes de tocar la base o
+        // comparar el hash, para no gastar tiempo/recursos en un intento
+        // que ya sabemos que va a fallar.
+        if (estaBloqueado(credentials.email)) return null;
+
         const usuario = await obtenerUsuarioPorEmail(credentials.email);
-        if (!usuario || !usuario.activo) return null;
+        if (!usuario || !usuario.activo) {
+          registrarIntentoFallido(credentials.email);
+          return null;
+        }
 
         const passwordValida = await bcrypt.compare(credentials.password, usuario.password_hash);
-        if (!passwordValida) return null;
+        if (!passwordValida) {
+          registrarIntentoFallido(credentials.email);
+          return null;
+        }
 
         const slug = credentials.slug?.trim() || "";
 
         if (usuario.codigo_rol === "SUPER_ADMIN") {
-          if (slug !== "") return null;
+          if (slug !== "") {
+            registrarIntentoFallido(credentials.email);
+            return null;
+          }
         } else {
-          if (slug === "" || usuario.empresa_slug !== slug) return null;
+          if (slug === "" || usuario.empresa_slug !== slug) {
+            registrarIntentoFallido(credentials.email);
+            return null;
+          }
         }
+
+        registrarLoginExitoso(credentials.email);
 
         return {
           id: String(usuario.id_usuario),
