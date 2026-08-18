@@ -48,6 +48,7 @@ export default function TareasClient({
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [finalizandoTarea, setFinalizandoTarea] = useState<number | null>(null);
+  const [eliminandoTarea, setEliminandoTarea] = useState<number | null>(null);
 
   // Asignacion de talentos a proyectos (solo Admin)
   const [talentos] = useState<Usuario[]>(talentosIniciales.filter((u) => u.codigo_rol === "TALENTO"));
@@ -291,6 +292,19 @@ export default function TareasClient({
     }
     await cargarTodo();
     setFinalizandoTarea(null);
+  }
+
+  async function eliminarTareaAccion(idTarea: number) {
+    setError(null);
+    setEliminandoTarea(idTarea);
+    const res = await fetch(`/api/tareas/${idTarea}`, { method: "DELETE" });
+    if (!res.ok) {
+      setError((await res.json()).error);
+      setEliminandoTarea(null);
+      return;
+    }
+    setTareas((prev) => prev.filter((t) => t.id_tarea !== idTarea));
+    setEliminandoTarea(null);
   }
 
   async function abrirPanelAsignacion(idProyecto: number) {
@@ -706,6 +720,16 @@ export default function TareasClient({
                         >
                           {finalizandoTarea === t.id_tarea && <Spinner className="h-3 w-3" />}
                           Finalizar
+                        </button>
+                      )}
+                      {esAdmin && (
+                        <button
+                          onClick={() => eliminarTareaAccion(t.id_tarea)}
+                          disabled={eliminandoTarea === t.id_tarea}
+                          className="inline-flex items-center gap-1.5 text-gray-500 hover:text-red-600 underline disabled:opacity-50"
+                        >
+                          {eliminandoTarea === t.id_tarea && <Spinner className="h-3 w-3" />}
+                          Eliminar
                         </button>
                       )}
                     </span>

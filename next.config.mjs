@@ -8,21 +8,24 @@ const withPWA = withPWAInit({
     disableDevLogs: true,
     runtimeCaching: [
       // Catalogos y listas que cambian poco dentro de una sesion (roles,
-      // paises, proyectos/tareas asignadas). StaleWhileRevalidate sirve la
-      // respuesta cacheada al instante (navegacion casi sin espera con la
-      // PWA instalada) y refresca en segundo plano, en vez de esperar
-      // siempre a la red como hace el "apis" NetworkFirst por defecto.
+      // paises, proyectos/tareas asignadas). NetworkFirst intenta la red
+      // primero (para que crear/eliminar algo se refleje de inmediato sin
+      // recargar la pagina) y solo cae al cache si no hay conexion --
+      // StaleWhileRevalidate se probo aca antes pero devolvia la respuesta
+      // vieja al instante, escondiendo cambios recien hechos hasta la
+      // proxima carga.
       {
         urlPattern: ({ url, sameOrigin }) =>
           sameOrigin &&
           /^\/api\/(maestro|proyectos|tareas|usuario-proyectos\/mios|clientes)(\?|$)/.test(
             url.pathname + url.search
           ),
-        handler: "StaleWhileRevalidate",
+        handler: "NetworkFirst",
         method: "GET",
         options: {
           cacheName: "api-catalogos",
           expiration: { maxEntries: 40, maxAgeSeconds: 300 },
+          networkTimeoutSeconds: 10,
         },
       },
       // Cronometro/reportes deben reflejar siempre el estado mas reciente

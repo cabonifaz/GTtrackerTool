@@ -352,7 +352,8 @@ BEGIN
       WHERE activo = 1
       GROUP BY id_tarea
     ) tot ON tot.id_tarea = t.id_tarea
-    WHERE pr.id_empresa = p_id_empresa_actor
+    WHERE t.activo = 1
+      AND pr.id_empresa = p_id_empresa_actor
       AND (p_id_proyecto IS NULL OR t.id_proyecto = p_id_proyecto)
     ORDER BY t.fecha_creacion DESC;
   ELSE
