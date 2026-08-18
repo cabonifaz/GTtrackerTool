@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
     codigoMoneda,
     publicidadActiva,
     ocultarNombre,
+    ocultarCredito,
   } = await req.json();
 
   try {
@@ -45,6 +46,7 @@ export async function POST(req: NextRequest) {
         publicidadActiva: !!publicidadActiva,
       },
       !!ocultarNombre,
+      !!ocultarCredito,
       session.user.email ?? ""
     );
     return NextResponse.json(result[0], { status: 201 });

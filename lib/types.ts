@@ -22,6 +22,7 @@ export interface Empresa {
   moneda: string | null;
   publicidad_activa: number;
   ocultar_nombre: number;
+  ocultar_credito: number;
   usuarios_activos?: number;
 }
 

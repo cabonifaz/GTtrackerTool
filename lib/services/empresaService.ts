@@ -16,6 +16,7 @@ export function crearEmpresa(
   colorSecundario: string | null,
   plan: PlanEmpresaInput,
   ocultarNombre: boolean,
+  ocultarCredito: boolean,
   creadoPor: string
 ) {
   return executeProcedure<{ id_empresa: number }>("sp_empresa_crear", [
@@ -29,6 +30,7 @@ export function crearEmpresa(
     plan.codigoMoneda,
     plan.publicidadActiva ? 1 : 0,
     ocultarNombre ? 1 : 0,
+    ocultarCredito ? 1 : 0,
     creadoPor,
   ]);
 }
@@ -40,6 +42,7 @@ export function editarEmpresa(
   colorSecundario: string | null,
   plan: PlanEmpresaInput,
   ocultarNombre: boolean,
+  ocultarCredito: boolean,
   modificadoPor: string
 ) {
   return executeProcedure("sp_empresa_editar", [
@@ -53,6 +56,7 @@ export function editarEmpresa(
     plan.codigoMoneda,
     plan.publicidadActiva ? 1 : 0,
     ocultarNombre ? 1 : 0,
+    ocultarCredito ? 1 : 0,
     modificadoPor,
   ]);
 }

@@ -14,6 +14,7 @@ export default async function LoginPage({ params }: { params: { empresa: string 
       empresaNombre={empresa.nombre}
       tieneLogo={!!empresa.tiene_logo}
       ocultarNombre={!!empresa.ocultar_nombre}
+      ocultarCredito={!!empresa.ocultar_credito}
       colorPrimario={empresa.color_primario}
       suspendida={!!empresa.suspendida}
     />

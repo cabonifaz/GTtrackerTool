@@ -201,6 +201,7 @@ export default function PlataformaClient({
           codigoMoneda: form.get("codigoMoneda"),
           publicidadActiva: form.get("publicidadActiva") === "on",
           ocultarNombre: form.get("ocultarNombre") === "on",
+          ocultarCredito: form.get("ocultarCredito") === "on",
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
@@ -233,6 +234,7 @@ export default function PlataformaClient({
           codigoMoneda: form.get("codigoMoneda"),
           publicidadActiva: form.get("publicidadActiva") === "on",
           ocultarNombre: form.get("ocultarNombre") === "on",
+          ocultarCredito: form.get("ocultarCredito") === "on",
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
@@ -413,6 +415,10 @@ export default function PlataformaClient({
               <input type="checkbox" name="ocultarNombre" />
               Ocultar nombre en login (solo logo)
             </label>
+            <label className="flex items-center gap-1.5 text-sm text-gray-600">
+              <input type="checkbox" name="ocultarCredito" />
+              Ocultar &quot;Develop by Geeky Tech&quot;
+            </label>
             <button
               disabled={creandoEmpresa}
               className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-1.5 disabled:opacity-50"
@@ -531,6 +537,10 @@ export default function PlataformaClient({
                   <label className="flex items-center gap-1.5 text-sm text-gray-600">
                     <input type="checkbox" name="ocultarNombre" defaultChecked={emp.ocultar_nombre === 1} />
                     Ocultar nombre en login (solo logo)
+                  </label>
+                  <label className="flex items-center gap-1.5 text-sm text-gray-600">
+                    <input type="checkbox" name="ocultarCredito" defaultChecked={emp.ocultar_credito === 1} />
+                    Ocultar &quot;Develop by Geeky Tech&quot;
                   </label>
                   <button
                     disabled={idsProcesando.has(`editar-${emp.id_empresa}`)}

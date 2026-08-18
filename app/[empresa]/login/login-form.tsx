@@ -10,6 +10,7 @@ export default function LoginForm({
   empresaNombre,
   tieneLogo,
   ocultarNombre,
+  ocultarCredito,
   colorPrimario,
   suspendida,
 }: {
@@ -17,6 +18,7 @@ export default function LoginForm({
   empresaNombre: string;
   tieneLogo: boolean;
   ocultarNombre: boolean;
+  ocultarCredito: boolean;
   colorPrimario: string;
   suspendida: boolean;
 }) {
@@ -120,17 +122,19 @@ export default function LoginForm({
         </button>
       </form>
 
-      <p className="mt-6 text-xs text-gray-400">
-        Develop by{" "}
-        <a
-          href="https://geeky-tech.es"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-gray-500 hover:text-gray-700 underline"
-        >
-          Geeky Tech
-        </a>
-      </p>
+      {!ocultarCredito && (
+        <p className="mt-6 text-xs text-gray-400">
+          Develop by{" "}
+          <a
+            href="https://geeky-tech.es"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-gray-500 hover:text-gray-700 underline"
+          >
+            Geeky Tech
+          </a>
+        </p>
+      )}
     </div>
   );
 }
