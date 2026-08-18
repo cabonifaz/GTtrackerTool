@@ -26,6 +26,21 @@ export interface Empresa {
   usuarios_activos?: number;
 }
 
+export interface PagoEmpresa {
+  id_pago: number;
+  id_empresa: number;
+  monto: number;
+  codigo_moneda: string;
+  moneda: string;
+  fecha_pago: string;
+  periodo_desde: string | null;
+  periodo_hasta: string | null;
+  referencia: string | null;
+  notas: string | null;
+  creado_por: string;
+  fecha_creacion: string;
+}
+
 export interface MaestroItem {
   id_maestro: number;
   tipo_maestro: string;

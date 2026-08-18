@@ -2,7 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import { signOut } from "next-auth/react";
-import { CodigoTipoPlanEmpresa, Empresa, MaestroItem, Usuario } from "@/lib/types";
+import { CodigoTipoPlanEmpresa, Empresa, MaestroItem, PagoEmpresa, Usuario } from "@/lib/types";
 import { Spinner } from "@/components/Spinner";
 import TenantLogo from "@/components/TenantLogo";
 import { fetchJson } from "@/lib/fetchJson";
@@ -140,6 +140,8 @@ export default function PlataformaClient({
   const [adminForm, setAdminForm] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<number | null>(null);
   const [linkCopiado, setLinkCopiado] = useState<number | null>(null);
+  const [pagosAbiertos, setPagosAbiertos] = useState<number | null>(null);
+  const [pagosPorEmpresa, setPagosPorEmpresa] = useState<Record<number, PagoEmpresa[]>>({});
   const [passwordGenerica, setPasswordGenerica] = useState<{ contexto: string; valor: string } | null>(
     null
   );
@@ -279,6 +281,66 @@ export default function PlataformaClient({
       setError(err instanceof Error ? err.message : "No se pudo subir el logo");
     } finally {
       marcar(`logo-${idEmpresa}`, false);
+    }
+  }
+
+  async function cargarPagos(idEmpresa: number) {
+    try {
+      const pagos = await fetchJson<PagoEmpresa[]>(`/api/plataforma/empresas/${idEmpresa}/pagos`);
+      setPagosPorEmpresa((prev) => ({ ...prev, [idEmpresa]: pagos }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo cargar el historial de pagos");
+    }
+  }
+
+  async function togglePagos(emp: Empresa) {
+    const abrir = pagosAbiertos !== emp.id_empresa;
+    setPagosAbiertos(abrir ? emp.id_empresa : null);
+    if (abrir && !pagosPorEmpresa[emp.id_empresa]) {
+      await cargarPagos(emp.id_empresa);
+    }
+  }
+
+  async function registrarPago(idEmpresa: number, e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const formEl = e.currentTarget;
+    const form = new FormData(formEl);
+    marcar(`pago-${idEmpresa}`, true);
+    try {
+      const res = await fetch(`/api/plataforma/empresas/${idEmpresa}/pagos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          monto: form.get("monto"),
+          codigoMoneda: form.get("codigoMoneda"),
+          fechaPago: form.get("fechaPago"),
+          periodoDesde: form.get("periodoDesde") || null,
+          periodoHasta: form.get("periodoHasta") || null,
+          referencia: form.get("referencia") || null,
+          notas: form.get("notas") || null,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      formEl.reset();
+      await cargarPagos(idEmpresa);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo registrar el pago");
+    } finally {
+      marcar(`pago-${idEmpresa}`, false);
+    }
+  }
+
+  async function eliminarPago(idEmpresa: number, idPago: number) {
+    marcar(`eliminar-pago-${idPago}`, true);
+    try {
+      const res = await fetch(`/api/plataforma/empresas/${idEmpresa}/pagos/${idPago}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).error);
+      await cargarPagos(idEmpresa);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo anular el pago");
+    } finally {
+      marcar(`eliminar-pago-${idPago}`, false);
     }
   }
 
@@ -469,6 +531,12 @@ export default function PlataformaClient({
                   >
                     Crear Admin
                   </button>
+                  <button
+                    onClick={() => togglePagos(emp)}
+                    className="text-gray-500 hover:text-gray-900 underline"
+                  >
+                    Pagos
+                  </button>
                   <label className="text-gray-500 hover:text-gray-900 underline cursor-pointer">
                     Logo
                     <input
@@ -568,6 +636,105 @@ export default function PlataformaClient({
                     Crear
                   </button>
                 </form>
+              )}
+
+              {pagosAbiertos === emp.id_empresa && (
+                <div className="bg-gray-50 rounded-md p-3 space-y-3">
+                  <ul className="divide-y divide-gray-200">
+                    {(pagosPorEmpresa[emp.id_empresa] ?? []).map((pago) => (
+                      <li key={pago.id_pago} className="py-2 text-sm flex items-start justify-between gap-2">
+                        <div>
+                          <span className="font-medium">{pago.fecha_pago}</span>
+                          <span className="text-gray-500">
+                            {" "}
+                            · {pago.monto} {pago.codigo_moneda}
+                          </span>
+                          {pago.periodo_desde && pago.periodo_hasta && (
+                            <span className="text-gray-400">
+                              {" "}
+                              · periodo {pago.periodo_desde} a {pago.periodo_hasta}
+                            </span>
+                          )}
+                          {pago.referencia && <span className="text-gray-400"> · ref: {pago.referencia}</span>}
+                          {pago.notas && <p className="text-xs text-gray-400">{pago.notas}</p>}
+                        </div>
+                        <button
+                          onClick={() => eliminarPago(emp.id_empresa, pago.id_pago)}
+                          disabled={idsProcesando.has(`eliminar-pago-${pago.id_pago}`)}
+                          className="shrink-0 text-gray-400 hover:text-red-600 underline text-xs disabled:opacity-50"
+                        >
+                          Anular
+                        </button>
+                      </li>
+                    ))}
+                    {(pagosPorEmpresa[emp.id_empresa] ?? []).length === 0 && (
+                      <li className="py-2 text-sm text-gray-400">Sin pagos registrados</li>
+                    )}
+                  </ul>
+
+                  <form onSubmit={(e) => registrarPago(emp.id_empresa, e)} className="grid gap-2 sm:grid-cols-6">
+                    <input
+                      name="fechaPago"
+                      type="date"
+                      required
+                      title="Fecha de pago"
+                      className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                    />
+                    <input
+                      name="monto"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      required
+                      placeholder="Monto"
+                      className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                    />
+                    <select
+                      name="codigoMoneda"
+                      required
+                      defaultValue={emp.codigo_moneda ?? ""}
+                      className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                    >
+                      <option value="" disabled>
+                        Moneda
+                      </option>
+                      {monedas.map((m) => (
+                        <option key={m.codigo} value={m.codigo}>
+                          {m.codigo}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      name="periodoDesde"
+                      type="date"
+                      title="Periodo desde (opcional)"
+                      className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                    />
+                    <input
+                      name="periodoHasta"
+                      type="date"
+                      title="Periodo hasta (opcional)"
+                      className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                    />
+                    <input
+                      name="referencia"
+                      placeholder="Referencia (opcional)"
+                      className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                    />
+                    <input
+                      name="notas"
+                      placeholder="Notas (opcional)"
+                      className="rounded-md border border-gray-300 px-3 py-1.5 text-sm sm:col-span-4"
+                    />
+                    <button
+                      disabled={idsProcesando.has(`pago-${emp.id_empresa}`)}
+                      className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-3 py-1.5 disabled:opacity-50 sm:col-span-2"
+                    >
+                      {idsProcesando.has(`pago-${emp.id_empresa}`) && <Spinner />}
+                      Registrar pago
+                    </button>
+                  </form>
+                </div>
               )}
             </li>
           ))}
