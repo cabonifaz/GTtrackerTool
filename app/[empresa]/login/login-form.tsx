@@ -4,6 +4,7 @@ import { useState, FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import TenantLogo from "@/components/TenantLogo";
+import { ofuscarPassword } from "@/lib/loginObfuscationClient";
 
 export default function LoginForm({
   slug,
@@ -39,7 +40,7 @@ export default function LoginForm({
 
     const result = await signIn("credentials", {
       email,
-      password,
+      password: await ofuscarPassword(password),
       slug,
       redirect: false,
     });

@@ -3,6 +3,7 @@
 import { useState, FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { ofuscarPassword } from "@/lib/loginObfuscationClient";
 
 export default function PlataformaLoginPage() {
   const router = useRouter();
@@ -18,7 +19,7 @@ export default function PlataformaLoginPage() {
 
     const result = await signIn("credentials", {
       email,
-      password,
+      password: await ofuscarPassword(password),
       redirect: false,
     });
 

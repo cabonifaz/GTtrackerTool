@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { obtenerUsuarioPorEmail } from "@/lib/services/usuarioService";
 import { CodigoRol } from "@/lib/types";
 import { estaBloqueado, registrarIntentoFallido, registrarLoginExitoso } from "@/lib/rateLimiter";
+import { desofuscarPassword } from "@/lib/loginObfuscationServer";
 
 // Un unico NextAuth sirve tanto el login por tenant (/[empresa]/login, con
 // slug) como el del Super Admin (/plataforma/login, sin slug). El slug
@@ -36,7 +37,8 @@ export const authOptions: AuthOptions = {
           return null;
         }
 
-        const passwordValida = await bcrypt.compare(credentials.password, usuario.password_hash);
+        const passwordRecibido = desofuscarPassword(credentials.password);
+        const passwordValida = await bcrypt.compare(passwordRecibido, usuario.password_hash);
         if (!passwordValida) {
           registrarIntentoFallido(credentials.email);
           return null;
