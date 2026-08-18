@@ -122,12 +122,14 @@ export default function PlataformaClient({
   usuariosIniciales,
   tiposPlan,
   monedas,
+  origen,
 }: {
   nombre: string;
   empresasIniciales: Empresa[];
   usuariosIniciales: Usuario[];
   tiposPlan: MaestroItem[];
   monedas: MaestroItem[];
+  origen: string;
 }) {
   const [empresas, setEmpresas] = useState<Empresa[]>(empresasIniciales);
   const [usuarios, setUsuarios] = useState<Usuario[]>(usuariosIniciales);
@@ -136,6 +138,7 @@ export default function PlataformaClient({
   const [idsProcesando, setIdsProcesando] = useState<Set<string>>(new Set());
   const [adminForm, setAdminForm] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<number | null>(null);
+  const [linkCopiado, setLinkCopiado] = useState<number | null>(null);
   const [passwordGenerica, setPasswordGenerica] = useState<{ contexto: string; valor: string } | null>(
     null
   );
@@ -149,6 +152,22 @@ export default function PlataformaClient({
       else next.delete(id);
       return next;
     });
+  }
+
+  function linkTenant(slug: string) {
+    return `${origen}/${slug}/login`;
+  }
+
+  async function copiarLink(emp: Empresa) {
+    const link = linkTenant(emp.slug);
+    try {
+      await navigator.clipboard.writeText(link);
+    } catch {
+      // clipboard API puede fallar (permiso, contexto no seguro); el link
+      // ya queda visible en pantalla para copiarlo a mano igual.
+    }
+    setLinkCopiado(emp.id_empresa);
+    setTimeout(() => setLinkCopiado((actual) => (actual === emp.id_empresa ? null : actual)), 2000);
   }
 
   async function recargar() {
@@ -432,6 +451,23 @@ export default function PlataformaClient({
                     />
                   </label>
                 </div>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <a
+                  href={linkTenant(emp.slug)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="truncate hover:text-gray-900 hover:underline"
+                >
+                  {linkTenant(emp.slug)}
+                </a>
+                <button
+                  onClick={() => copiarLink(emp)}
+                  className="shrink-0 text-gray-500 hover:text-gray-900 underline"
+                >
+                  {linkCopiado === emp.id_empresa ? "Copiado" : "Copiar link"}
+                </button>
               </div>
 
               {editForm === emp.id_empresa && (
