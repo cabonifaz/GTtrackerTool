@@ -1,7 +1,16 @@
 "use client";
 
-import { useState, FormEvent } from "react";
-import { Cliente, MaestroItem, Perfil, Proyecto, Tarea, Usuario, UsuarioAsignado } from "@/lib/types";
+import { useRef, useState, FormEvent } from "react";
+import {
+  Cliente,
+  ImportarPerfilResultado,
+  MaestroItem,
+  Perfil,
+  Proyecto,
+  Tarea,
+  Usuario,
+  UsuarioAsignado,
+} from "@/lib/types";
 import { CargandoInline, Spinner } from "@/components/Spinner";
 import { fetchJson } from "@/lib/fetchJson";
 
@@ -64,6 +73,13 @@ export default function TareasClient({
   const [guardandoTarifaPerfil, setGuardandoTarifaPerfil] = useState(false);
   const [desactivandoPerfil, setDesactivandoPerfil] = useState<number | null>(null);
 
+  // Carga masiva de tarifario por Excel (solo Admin)
+  const inputArchivoPerfilRef = useRef<HTMLInputElement>(null);
+  const [monedaImportPerfil, setMonedaImportPerfil] = useState("");
+  const [descargandoPlantillaPerfil, setDescargandoPlantillaPerfil] = useState(false);
+  const [importandoPerfil, setImportandoPerfil] = useState(false);
+  const [resultadosImportPerfil, setResultadosImportPerfil] = useState<ImportarPerfilResultado[] | null>(null);
+
   async function cargarTodo() {
     try {
       const [c, p, t] = await Promise.all([
@@ -99,6 +115,7 @@ export default function TareasClient({
       body: JSON.stringify({
         idCliente: Number(form.get("idCliente")),
         nombre: form.get("nombre"),
+        codigoExterno: form.get("codigoExterno") || null,
         tarifa: Number(form.get("tarifa")),
         idMoneda: Number(form.get("idMoneda")),
       }),
@@ -143,6 +160,52 @@ export default function TareasClient({
     await fetch(`/api/perfiles/${idPerfil}`, { method: "DELETE" });
     await cargarPerfiles();
     setDesactivandoPerfil(null);
+  }
+
+  async function descargarPlantillaPerfil() {
+    setDescargandoPlantillaPerfil(true);
+    setError(null);
+    const res = await fetch("/api/perfiles/plantilla");
+    if (!res.ok) {
+      setError((await res.json()).error ?? "No se pudo descargar la plantilla");
+      setDescargandoPlantillaPerfil(false);
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "plantilla_tarifario.xlsx";
+    a.click();
+    URL.revokeObjectURL(url);
+    setDescargandoPlantillaPerfil(false);
+  }
+
+  async function importarExcelPerfil() {
+    const archivo = inputArchivoPerfilRef.current?.files?.[0];
+    if (!archivo || !perfilClienteFiltro || !monedaImportPerfil) return;
+
+    setImportandoPerfil(true);
+    setResultadosImportPerfil(null);
+    setError(null);
+
+    const formData = new FormData();
+    formData.append("archivo", archivo);
+    formData.append("idCliente", perfilClienteFiltro);
+    formData.append("idMoneda", monedaImportPerfil);
+    const moneda = monedas.find((m) => String(m.id_maestro) === monedaImportPerfil);
+    formData.append("codigoMoneda", moneda?.codigo ?? "");
+
+    const res = await fetch("/api/perfiles/importar", { method: "POST", body: formData });
+    setImportandoPerfil(false);
+    if (!res.ok) {
+      setError((await res.json()).error ?? "No se pudo importar el archivo");
+      return;
+    }
+    const resultados: ImportarPerfilResultado[] = await res.json();
+    setResultadosImportPerfil(resultados);
+    if (inputArchivoPerfilRef.current) inputArchivoPerfilRef.current.value = "";
+    await cargarPerfiles();
   }
 
   async function crearCliente(e: FormEvent<HTMLFormElement>) {
@@ -590,7 +653,12 @@ export default function TareasClient({
           {tab === "tareas" && (
             <div className="space-y-4">
               <form onSubmit={crearTarea} className="grid gap-2 sm:grid-cols-3">
-                <select name="idProyecto" required className="rounded-md border border-gray-300 px-3 py-2 text-sm">
+                <select
+                  name="idProyecto"
+                  required
+                  defaultValue={proyectos.length === 1 ? String(proyectos[0].id_proyecto) : ""}
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                >
                   <option value="">Selecciona un proyecto</option>
                   {proyectos.map((p) => (
                     <option key={p.id_proyecto} value={p.id_proyecto}>
@@ -671,13 +739,18 @@ export default function TareasClient({
               {perfilClienteFiltro && (
                 <form
                   onSubmit={crearPerfilAccion}
-                  className="grid gap-2 sm:grid-cols-4 rounded-lg border border-gray-200 bg-white p-4"
+                  className="grid gap-2 sm:grid-cols-5 rounded-lg border border-gray-200 bg-white p-4"
                 >
                   <input type="hidden" name="idCliente" value={perfilClienteFiltro} />
                   <input
                     name="nombre"
                     required
                     placeholder="Nombre del perfil (ej. Senior)"
+                    className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  />
+                  <input
+                    name="codigoExterno"
+                    placeholder="Id Rate (opcional)"
                     className="rounded-md border border-gray-300 px-3 py-2 text-sm"
                   />
                   <input
@@ -707,12 +780,81 @@ export default function TareasClient({
                 </form>
               )}
 
+              {perfilClienteFiltro && (
+                <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
+                  <p className="text-sm font-medium">Cargar tarifario por Excel</p>
+                  <p className="text-xs text-gray-500">
+                    Formato de 3 columnas (Id Rate / Rate / Rate p/h). Si un perfil ya existe para este
+                    cliente se actualiza su tarifa; si no, se crea.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={descargarPlantillaPerfil}
+                      disabled={descargandoPlantillaPerfil}
+                      className="inline-flex items-center gap-2 rounded-md border border-gray-300 text-sm font-medium px-4 py-2 disabled:opacity-50"
+                    >
+                      {descargandoPlantillaPerfil && <Spinner />}
+                      Descargar plantilla
+                    </button>
+                    <select
+                      value={monedaImportPerfil}
+                      onChange={(e) => setMonedaImportPerfil(e.target.value)}
+                      className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    >
+                      <option value="">Moneda del tarifario</option>
+                      {monedas.map((m) => (
+                        <option key={m.id_maestro} value={m.id_maestro}>
+                          {m.valor}
+                        </option>
+                      ))}
+                    </select>
+                    <input ref={inputArchivoPerfilRef} type="file" accept=".xlsx" className="text-sm" />
+                    <button
+                      onClick={importarExcelPerfil}
+                      disabled={importandoPerfil || !monedaImportPerfil}
+                      className="inline-flex items-center gap-2 rounded-md border border-gray-300 text-sm font-medium px-4 py-2 disabled:opacity-50"
+                    >
+                      {importandoPerfil && <Spinner />}
+                      Importar
+                    </button>
+                  </div>
+
+                  {resultadosImportPerfil && (
+                    <div className="overflow-x-auto border border-gray-100 rounded-md">
+                      <table className="w-full text-xs">
+                        <thead className="bg-gray-50 text-left text-gray-500">
+                          <tr>
+                            <th className="px-3 py-1.5 font-medium">Fila</th>
+                            <th className="px-3 py-1.5 font-medium">Id Rate</th>
+                            <th className="px-3 py-1.5 font-medium">Rate</th>
+                            <th className="px-3 py-1.5 font-medium">Resultado</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {resultadosImportPerfil.map((r) => (
+                            <tr key={r.fila} className={r.ok ? "" : "bg-red-50"}>
+                              <td className="px-3 py-1.5">{r.fila}</td>
+                              <td className="px-3 py-1.5">{r.idRate || "-"}</td>
+                              <td className="px-3 py-1.5">{r.rate || "-"}</td>
+                              <td className={`px-3 py-1.5 ${r.ok ? "text-green-700" : "text-red-600 font-medium"}`}>
+                                {r.mensaje}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
                 {perfiles
                   .filter((pf) => !perfilClienteFiltro || pf.id_cliente === Number(perfilClienteFiltro))
                   .map((pf) => (
                     <li key={pf.id_perfil} className="px-4 py-3 text-sm flex flex-wrap justify-between items-center gap-2">
                       <span>
+                        {pf.codigo_externo && <span className="text-gray-400">{pf.codigo_externo} · </span>}
                         {pf.nombre}
                         <span className="text-gray-400"> · {pf.cliente}</span>
                       </span>

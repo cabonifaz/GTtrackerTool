@@ -56,6 +56,7 @@ export interface Usuario {
   nombres: string;
   apellidos: string;
   email: string;
+  numero_documento: string | null;
   codigo_rol: CodigoRol;
   rol: string;
   activo: number;
@@ -173,6 +174,7 @@ export interface Perfil {
   id_cliente: number;
   cliente: string;
   nombre: string;
+  codigo_externo: string | null;
   tarifa: number | null;
   id_moneda: number | null;
   codigo_moneda: string | null;
@@ -297,4 +299,21 @@ export interface ImportarFilaResultado {
   tarea: string;
   fechaInicio: string | null;
   fechaFin: string | null;
+}
+
+export interface ImportarUsuarioResultado {
+  fila: number;
+  ok: boolean;
+  mensaje: string;
+  nombres: string;
+  apellidos: string;
+  email: string;
+}
+
+export interface ImportarPerfilResultado {
+  fila: number;
+  ok: boolean;
+  mensaje: string;
+  idRate: string | null;
+  rate: string;
 }

@@ -11,6 +11,7 @@ DROP PROCEDURE IF EXISTS sp_perfil_crear $$
 CREATE PROCEDURE sp_perfil_crear(
   IN p_id_cliente       INT UNSIGNED,
   IN p_nombre           VARCHAR(150),
+  IN p_codigo_externo   VARCHAR(50),
   IN p_tarifa           DECIMAL(10,2),
   IN p_id_moneda        INT UNSIGNED,
   IN p_id_empresa_actor INT UNSIGNED,
@@ -45,8 +46,8 @@ BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Moneda invalida';
   END IF;
 
-  INSERT INTO perfiles (id_cliente, nombre, creado_por)
-  VALUES (p_id_cliente, TRIM(p_nombre), p_creado_por);
+  INSERT INTO perfiles (id_cliente, nombre, codigo_externo, creado_por)
+  VALUES (p_id_cliente, TRIM(p_nombre), NULLIF(TRIM(p_codigo_externo), ''), p_creado_por);
   SET v_id_perfil = LAST_INSERT_ID();
 
   INSERT INTO perfiles_tarifas (id_perfil, tarifa, id_moneda, fecha_desde, creado_por)
@@ -63,6 +64,7 @@ CREATE PROCEDURE sp_perfil_editar_tarifa(
   IN p_id_perfil        INT UNSIGNED,
   IN p_tarifa           DECIMAL(10,2),
   IN p_id_moneda        INT UNSIGNED,
+  IN p_codigo_externo   VARCHAR(50),
   IN p_id_empresa_actor INT UNSIGNED,
   IN p_modificado_por   VARCHAR(150)
 )
@@ -106,6 +108,14 @@ BEGIN
 
     INSERT INTO perfiles_tarifas (id_perfil, tarifa, id_moneda, fecha_desde, creado_por)
     VALUES (p_id_perfil, p_tarifa, p_id_moneda, CURDATE(), p_modificado_por);
+  END IF;
+
+  -- NULL significa "no tocar" (las ediciones normales de tarifa no
+  -- mandan codigo_externo); solo la carga masiva de tarifario lo usa.
+  IF p_codigo_externo IS NOT NULL THEN
+    UPDATE perfiles
+    SET codigo_externo = NULLIF(TRIM(p_codigo_externo), '')
+    WHERE id_perfil = p_id_perfil;
   END IF;
 END $$
 
@@ -171,7 +181,7 @@ CREATE PROCEDURE sp_perfil_listar(
   IN p_id_empresa_actor INT UNSIGNED
 )
 BEGIN
-  SELECT p.id_perfil, p.id_cliente, c.nombre AS cliente, p.nombre,
+  SELECT p.id_perfil, p.id_cliente, c.nombre AS cliente, p.nombre, p.codigo_externo,
          pt.tarifa, pt.id_moneda, mon.codigo AS codigo_moneda, mon.valor AS moneda,
          p.fecha_creacion
   FROM perfiles p

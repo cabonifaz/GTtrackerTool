@@ -23,7 +23,15 @@ export default async function CronometroPage({ params }: { params: { empresa: st
     obtenerEmpresaPorSlug(params.empresa),
   ]);
 
+  const proyectosActivos = proyectos.filter((p) => p.activo);
   const predeterminado = misProyectos.find((p) => p.predeterminado === 1);
+  // Si el talento no marco ninguno como predeterminado pero solo tiene un
+  // proyecto disponible, no tiene sentido obligarlo a elegirlo cada vez.
+  const idProyectoInicial = predeterminado
+    ? String(predeterminado.id_proyecto)
+    : proyectosActivos.length === 1
+      ? String(proyectosActivos[0].id_proyecto)
+      : "";
   let feriadoProximo: Feriado | null = null;
   if (predeterminado?.id_pais_calendario) {
     try {
@@ -38,11 +46,11 @@ export default async function CronometroPage({ params }: { params: { empresa: st
 
   return (
     <CronometroClient
-      proyectosIniciales={proyectos.filter((p) => p.activo)}
+      proyectosIniciales={proyectosActivos}
       tareasIniciales={tareas.filter((t) => t.activo)}
       activoServidorInicial={activoServidor}
       ultimaTareaInicial={ultimaTarea}
-      idProyectoInicial={predeterminado ? String(predeterminado.id_proyecto) : ""}
+      idProyectoInicial={idProyectoInicial}
       feriadoProximoInicial={feriadoProximo}
       publicidadActiva={empresa?.publicidad_activa === 1}
     />

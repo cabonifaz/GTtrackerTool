@@ -43,7 +43,11 @@ export default function RegistrosClient({
 
   // Formulario de alta manual
   const [modoTarea, setModoTarea] = useState<ModoTarea>("existente");
-  const [idProyecto, setIdProyecto] = useState("");
+  const [idProyecto, setIdProyecto] = useState(
+    proyectosIniciales.filter((p) => p.activo).length === 1
+      ? String(proyectosIniciales.filter((p) => p.activo)[0].id_proyecto)
+      : ""
+  );
   const [idTarea, setIdTarea] = useState("");
   const [nombreTareaNueva, setNombreTareaNueva] = useState("");
   const [fechaInicioNuevo, setFechaInicioNuevo] = useState("");

@@ -61,7 +61,8 @@ export default function ReportesClient({
   // Reporte de costos (solo Admin)
   const hoy = new Date();
   const [proyectos] = useState<Proyecto[]>(proyectosIniciales);
-  const [costoIdProyecto, setCostoIdProyecto] = useState("");
+  const idProyectoUnico = proyectos.length === 1 ? String(proyectos[0].id_proyecto) : "";
+  const [costoIdProyecto, setCostoIdProyecto] = useState(idProyectoUnico);
   const [costoAnio, setCostoAnio] = useState(hoy.getFullYear());
   const [costoMes, setCostoMes] = useState(hoy.getMonth() + 1);
   const [filasCostos, setFilasCostos] = useState<ReporteCostoRow[]>([]);
@@ -69,7 +70,7 @@ export default function ReportesClient({
   const [buscoCostos, setBuscoCostos] = useState(false);
 
   // Resumen de avance + recordatorios (solo Admin)
-  const [resumenIdProyecto, setResumenIdProyecto] = useState("");
+  const [resumenIdProyecto, setResumenIdProyecto] = useState(idProyectoUnico);
   const [resumenAnio, setResumenAnio] = useState(hoy.getFullYear());
   const [resumenMes, setResumenMes] = useState(hoy.getMonth() + 1);
   const [filasResumen, setFilasResumen] = useState<ResumenAvanceRow[]>([]);

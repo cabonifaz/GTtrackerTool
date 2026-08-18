@@ -14,13 +14,14 @@ DELIMITER $$
 
 DROP PROCEDURE IF EXISTS sp_usuario_crear $$
 CREATE PROCEDURE sp_usuario_crear(
-  IN p_nombres        VARCHAR(100),
-  IN p_apellidos      VARCHAR(100),
-  IN p_email          VARCHAR(150),
-  IN p_password_hash  VARCHAR(255),
-  IN p_codigo_rol     VARCHAR(50),
-  IN p_id_empresa     INT UNSIGNED,
-  IN p_creado_por     VARCHAR(150)
+  IN p_nombres          VARCHAR(100),
+  IN p_apellidos        VARCHAR(100),
+  IN p_email            VARCHAR(150),
+  IN p_password_hash    VARCHAR(255),
+  IN p_codigo_rol       VARCHAR(50),
+  IN p_id_empresa       INT UNSIGNED,
+  IN p_numero_documento VARCHAR(50),
+  IN p_creado_por       VARCHAR(150)
 )
 BEGIN
   DECLARE v_id_rol INT UNSIGNED;
@@ -58,8 +59,8 @@ BEGIN
     END IF;
   END IF;
 
-  INSERT INTO usuarios (nombres, apellidos, email, password_hash, id_rol, id_empresa, creado_por)
-  VALUES (p_nombres, p_apellidos, p_email, p_password_hash, v_id_rol, p_id_empresa, p_creado_por);
+  INSERT INTO usuarios (nombres, apellidos, email, password_hash, id_rol, id_empresa, numero_documento, creado_por)
+  VALUES (p_nombres, p_apellidos, p_email, p_password_hash, v_id_rol, p_id_empresa, NULLIF(TRIM(p_numero_documento), ''), p_creado_por);
 
   SELECT LAST_INSERT_ID() AS id_usuario;
 END $$
@@ -70,6 +71,7 @@ CREATE PROCEDURE sp_usuario_editar(
   IN p_nombres          VARCHAR(100),
   IN p_apellidos        VARCHAR(100),
   IN p_codigo_rol       VARCHAR(50),
+  IN p_numero_documento VARCHAR(50),
   IN p_id_empresa_actor INT UNSIGNED,
   IN p_modificado_por   VARCHAR(150)
 )
@@ -101,6 +103,7 @@ BEGIN
   SET nombres = p_nombres,
       apellidos = p_apellidos,
       id_rol = v_id_rol,
+      numero_documento = NULLIF(TRIM(p_numero_documento), ''),
       modificado_por = p_modificado_por
   WHERE id_usuario = p_id_usuario;
 END $$
@@ -182,7 +185,7 @@ CREATE PROCEDURE sp_usuario_listar(
   IN p_id_empresa_actor INT UNSIGNED
 )
 BEGIN
-  SELECT u.id_usuario, u.nombres, u.apellidos, u.email,
+  SELECT u.id_usuario, u.nombres, u.apellidos, u.email, u.numero_documento,
          r.codigo AS codigo_rol, r.valor AS rol, u.activo,
          u.fecha_creacion, u.id_empresa, e.nombre AS empresa, e.slug AS empresa_slug
   FROM usuarios u

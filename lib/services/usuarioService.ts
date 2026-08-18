@@ -8,6 +8,7 @@ export function crearUsuario(
   passwordHash: string,
   codigoRol: CodigoRol,
   idEmpresa: number | null,
+  numeroDocumento: string | null,
   creadoPor: string
 ) {
   return executeProcedure<{ id_usuario: number }>("sp_usuario_crear", [
@@ -17,6 +18,7 @@ export function crearUsuario(
     passwordHash,
     codigoRol,
     idEmpresa,
+    numeroDocumento,
     creadoPor,
   ]);
 }
@@ -26,6 +28,7 @@ export function editarUsuario(
   nombres: string,
   apellidos: string,
   codigoRol: CodigoRol,
+  numeroDocumento: string | null,
   idEmpresaActor: number | null,
   modificadoPor: string
 ) {
@@ -34,6 +37,7 @@ export function editarUsuario(
     nombres,
     apellidos,
     codigoRol,
+    numeroDocumento,
     idEmpresaActor,
     modificadoPor,
   ]);

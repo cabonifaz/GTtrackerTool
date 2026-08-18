@@ -1,20 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, handleApiError } from "@/lib/apiHelpers";
-import { editarTarifaPerfil } from "@/lib/services/perfilService";
+import { editarUsuario } from "@/lib/services/usuarioService";
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await requireAdmin();
   if (session instanceof NextResponse) return session;
 
-  const { tarifa, idMoneda } = await req.json();
+  const { nombres, apellidos, codigoRol, numeroDocumento } = await req.json();
 
   try {
-    await editarTarifaPerfil(
+    await editarUsuario(
       Number(params.id),
-      Number(tarifa),
-      Number(idMoneda),
-      null,
-      session.user.idEmpresa!,
+      nombres,
+      apellidos,
+      codigoRol,
+      numeroDocumento || null,
+      session.user.idEmpresa,
       session.user.email ?? ""
     );
     return NextResponse.json({ ok: true });

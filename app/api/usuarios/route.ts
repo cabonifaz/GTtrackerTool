@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   const session = await requireAdmin();
   if (session instanceof NextResponse) return session;
 
-  const { nombres, apellidos, email, codigoRol } = await req.json();
+  const { nombres, apellidos, email, codigoRol, numeroDocumento } = await req.json();
 
   try {
     const passwordHash = await bcrypt.hash(PASSWORD_GENERICA, 10);
@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
       passwordHash,
       codigoRol,
       session.user.idEmpresa,
+      numeroDocumento || null,
       session.user.email ?? ""
     );
     return NextResponse.json(

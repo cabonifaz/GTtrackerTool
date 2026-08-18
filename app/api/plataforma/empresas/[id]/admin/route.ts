@@ -19,6 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       passwordHash,
       "ADMIN",
       Number(params.id),
+      null,
       session.user.email ?? ""
     );
     return NextResponse.json(

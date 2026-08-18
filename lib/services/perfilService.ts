@@ -4,6 +4,7 @@ import { Perfil, PerfilTarifaHistorico } from "@/lib/types";
 export function crearPerfil(
   idCliente: number,
   nombre: string,
+  codigoExterno: string | null,
   tarifa: number,
   idMoneda: number,
   idEmpresaActor: number,
@@ -12,6 +13,7 @@ export function crearPerfil(
   return executeProcedure<{ id_perfil: number }>("sp_perfil_crear", [
     idCliente,
     nombre,
+    codigoExterno,
     tarifa,
     idMoneda,
     idEmpresaActor,
@@ -23,10 +25,18 @@ export function editarTarifaPerfil(
   idPerfil: number,
   tarifa: number,
   idMoneda: number,
+  codigoExterno: string | null,
   idEmpresaActor: number,
   modificadoPor: string
 ) {
-  return executeProcedure("sp_perfil_editar_tarifa", [idPerfil, tarifa, idMoneda, idEmpresaActor, modificadoPor]);
+  return executeProcedure("sp_perfil_editar_tarifa", [
+    idPerfil,
+    tarifa,
+    idMoneda,
+    codigoExterno,
+    idEmpresaActor,
+    modificadoPor,
+  ]);
 }
 
 export function editarNombrePerfil(idPerfil: number, nombre: string, idEmpresaActor: number, modificadoPor: string) {

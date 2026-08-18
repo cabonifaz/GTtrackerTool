@@ -21,12 +21,13 @@ export async function POST(req: NextRequest) {
   const session = await requireAdmin();
   if (session instanceof NextResponse) return session;
 
-  const { idCliente, nombre, tarifa, idMoneda } = await req.json();
+  const { idCliente, nombre, codigoExterno, tarifa, idMoneda } = await req.json();
 
   try {
     const result = await crearPerfil(
       Number(idCliente),
       nombre,
+      codigoExterno || null,
       Number(tarifa),
       Number(idMoneda),
       session.user.idEmpresa!,
