@@ -199,6 +199,7 @@ export default function PlataformaClient({
           tarifaPorUsuario: form.get("tarifaPorUsuario"),
           codigoMoneda: form.get("codigoMoneda"),
           publicidadActiva: form.get("publicidadActiva") === "on",
+          ocultarNombre: form.get("ocultarNombre") === "on",
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
@@ -230,6 +231,7 @@ export default function PlataformaClient({
           tarifaPorUsuario: form.get("tarifaPorUsuario"),
           codigoMoneda: form.get("codigoMoneda"),
           publicidadActiva: form.get("publicidadActiva") === "on",
+          ocultarNombre: form.get("ocultarNombre") === "on",
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
@@ -386,6 +388,10 @@ export default function PlataformaClient({
               planInicial={planPorDefecto}
               publicidadInicial={planPorDefecto === "GRATIS_PUBLICIDAD"}
             />
+            <label className="flex items-center gap-1.5 text-sm text-gray-600">
+              <input type="checkbox" name="ocultarNombre" />
+              Ocultar nombre en login (solo logo)
+            </label>
             <button
               disabled={creandoEmpresa}
               className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-1.5 disabled:opacity-50"
@@ -502,6 +508,10 @@ export default function PlataformaClient({
                     monedaInicial={emp.codigo_moneda}
                     publicidadInicial={emp.publicidad_activa === 1}
                   />
+                  <label className="flex items-center gap-1.5 text-sm text-gray-600">
+                    <input type="checkbox" name="ocultarNombre" defaultChecked={emp.ocultar_nombre === 1} />
+                    Ocultar nombre en login (solo logo)
+                  </label>
                   <button
                     disabled={idsProcesando.has(`editar-${emp.id_empresa}`)}
                     className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-3 py-1.5 disabled:opacity-50"

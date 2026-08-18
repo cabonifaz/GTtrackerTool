@@ -6,8 +6,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const session = await requireSuperAdmin();
   if (session instanceof NextResponse) return session;
 
-  const { nombre, colorPrimario, colorSecundario, codigoTipoPlan, limiteUsuarios, tarifaPorUsuario, codigoMoneda, publicidadActiva } =
-    await req.json();
+  const {
+    nombre,
+    colorPrimario,
+    colorSecundario,
+    codigoTipoPlan,
+    limiteUsuarios,
+    tarifaPorUsuario,
+    codigoMoneda,
+    publicidadActiva,
+    ocultarNombre,
+  } = await req.json();
 
   try {
     await editarEmpresa(
@@ -22,6 +31,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         codigoMoneda: codigoMoneda ?? null,
         publicidadActiva: !!publicidadActiva,
       },
+      !!ocultarNombre,
       session.user.email ?? ""
     );
     return NextResponse.json({ ok: true });

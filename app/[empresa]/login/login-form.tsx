@@ -8,12 +8,14 @@ export default function LoginForm({
   slug,
   empresaNombre,
   tieneLogo,
+  ocultarNombre,
   colorPrimario,
   suspendida,
 }: {
   slug: string;
   empresaNombre: string;
   tieneLogo: boolean;
+  ocultarNombre: boolean;
   colorPrimario: string;
   suspendida: boolean;
 }) {
@@ -22,6 +24,10 @@ export default function LoginForm({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
+
+  // Sin logo no hay nada mas que mostrar, asi que el nombre siempre se ve
+  // aunque la empresa haya pedido ocultarlo.
+  const mostrarNombre = !tieneLogo || !ocultarNombre;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -47,17 +53,24 @@ export default function LoginForm({
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
+    <div className="min-h-screen flex flex-col items-center justify-center px-4">
       <form
         onSubmit={handleSubmit}
         className="w-full max-w-sm bg-white rounded-xl shadow-sm border border-gray-200 p-8 space-y-5"
       >
-        <div className="space-y-2">
+        <div className="flex flex-col items-center text-center gap-2">
           {tieneLogo && (
             // eslint-disable-next-line @next/next/no-img-element -- logo binario servido desde la DB
-            <img src={`/${slug}/logo`} alt={empresaNombre} className="h-8 w-auto" />
+            <img
+              src={`/${slug}/logo`}
+              alt={empresaNombre}
+              className={mostrarNombre ? "h-12 w-auto" : "h-20 w-auto"}
+            />
           )}
-          <h1 className="text-xl font-semibold">{empresaNombre}</h1>
+          {mostrarNombre && <h1 className="text-xl font-semibold">{empresaNombre}</h1>}
+          <p className="text-xs text-gray-400">
+            Trackeo de tiempos &quot;Qro&apos;nos&quot;
+          </p>
           <p className="text-sm text-gray-500">Inicia sesion para continuar</p>
         </div>
 
@@ -110,6 +123,18 @@ export default function LoginForm({
           {cargando ? "Ingresando..." : "Ingresar"}
         </button>
       </form>
+
+      <p className="mt-6 text-xs text-gray-400">
+        Develop by{" "}
+        <a
+          href="https://geeky-tech.es"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-gray-500 hover:text-gray-700 underline"
+        >
+          Geeky Tech
+        </a>
+      </p>
     </div>
   );
 }

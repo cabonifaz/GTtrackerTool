@@ -26,6 +26,7 @@ CREATE PROCEDURE sp_empresa_crear(
   IN p_tarifa_por_usuario DECIMAL(10,2),
   IN p_codigo_moneda      VARCHAR(10),
   IN p_publicidad_activa  TINYINT(1),
+  IN p_ocultar_nombre     TINYINT(1),
   IN p_creado_por         VARCHAR(150)
 )
 BEGIN
@@ -77,12 +78,12 @@ BEGIN
 
   INSERT INTO empresas (
     nombre, slug, color_primario, color_secundario,
-    id_tipo_plan, limite_usuarios, tarifa_por_usuario, id_moneda, publicidad_activa,
+    id_tipo_plan, limite_usuarios, tarifa_por_usuario, id_moneda, publicidad_activa, ocultar_nombre,
     creado_por
   )
   VALUES (
     p_nombre, p_slug, COALESCE(p_color_primario, '#111827'), COALESCE(p_color_secundario, '#374151'),
-    v_id_tipo_plan, v_limite_usuarios, v_tarifa_por_usuario, v_id_moneda, COALESCE(p_publicidad_activa, 0),
+    v_id_tipo_plan, v_limite_usuarios, v_tarifa_por_usuario, v_id_moneda, COALESCE(p_publicidad_activa, 0), COALESCE(p_ocultar_nombre, 0),
     p_creado_por
   );
 
@@ -100,6 +101,7 @@ CREATE PROCEDURE sp_empresa_editar(
   IN p_tarifa_por_usuario DECIMAL(10,2),
   IN p_codigo_moneda      VARCHAR(10),
   IN p_publicidad_activa  TINYINT(1),
+  IN p_ocultar_nombre     TINYINT(1),
   IN p_modificado_por     VARCHAR(150)
 )
 BEGIN
@@ -147,6 +149,7 @@ BEGIN
       tarifa_por_usuario = v_tarifa_por_usuario,
       id_moneda = v_id_moneda,
       publicidad_activa = COALESCE(p_publicidad_activa, 0),
+      ocultar_nombre = COALESCE(p_ocultar_nombre, 0),
       modificado_por = p_modificado_por
   WHERE id_empresa = p_id_empresa;
 END $$
@@ -216,7 +219,7 @@ BEGIN
          e.id_tipo_plan, tp.codigo AS codigo_tipo_plan, tp.valor AS tipo_plan,
          e.limite_usuarios, e.tarifa_por_usuario,
          e.id_moneda, mon.codigo AS codigo_moneda, mon.valor AS moneda,
-         e.publicidad_activa,
+         e.publicidad_activa, e.ocultar_nombre,
          (SELECT COUNT(*) FROM usuarios u WHERE u.id_empresa = e.id_empresa AND u.activo = 1) AS usuarios_activos
   FROM empresas e
   LEFT JOIN maestro tp ON tp.id_maestro = e.id_tipo_plan
@@ -234,7 +237,7 @@ BEGIN
          e.id_tipo_plan, tp.codigo AS codigo_tipo_plan, tp.valor AS tipo_plan,
          e.limite_usuarios, e.tarifa_por_usuario,
          e.id_moneda, mon.codigo AS codigo_moneda, mon.valor AS moneda,
-         e.publicidad_activa
+         e.publicidad_activa, e.ocultar_nombre
   FROM empresas e
   LEFT JOIN maestro tp ON tp.id_maestro = e.id_tipo_plan
   LEFT JOIN maestro mon ON mon.id_maestro = e.id_moneda

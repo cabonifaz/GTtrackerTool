@@ -18,8 +18,18 @@ export async function POST(req: NextRequest) {
   const session = await requireSuperAdmin();
   if (session instanceof NextResponse) return session;
 
-  const { nombre, slug, colorPrimario, colorSecundario, codigoTipoPlan, limiteUsuarios, tarifaPorUsuario, codigoMoneda, publicidadActiva } =
-    await req.json();
+  const {
+    nombre,
+    slug,
+    colorPrimario,
+    colorSecundario,
+    codigoTipoPlan,
+    limiteUsuarios,
+    tarifaPorUsuario,
+    codigoMoneda,
+    publicidadActiva,
+    ocultarNombre,
+  } = await req.json();
 
   try {
     const result = await crearEmpresa(
@@ -34,6 +44,7 @@ export async function POST(req: NextRequest) {
         codigoMoneda: codigoMoneda ?? null,
         publicidadActiva: !!publicidadActiva,
       },
+      !!ocultarNombre,
       session.user.email ?? ""
     );
     return NextResponse.json(result[0], { status: 201 });

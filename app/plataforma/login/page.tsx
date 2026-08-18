@@ -34,7 +34,7 @@ export default function PlataformaLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
+    <div className="min-h-screen flex flex-col items-center justify-center px-4">
       <form
         onSubmit={handleSubmit}
         className="w-full max-w-sm bg-white rounded-xl shadow-sm border border-gray-200 p-8 space-y-5"
@@ -88,6 +88,18 @@ export default function PlataformaLoginPage() {
           {cargando ? "Ingresando..." : "Ingresar"}
         </button>
       </form>
+
+      <p className="mt-6 text-xs text-gray-400">
+        Develop by{" "}
+        <a
+          href="https://geeky-tech.es"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-gray-500 hover:text-gray-700 underline"
+        >
+          Geeky Tech
+        </a>
+      </p>
     </div>
   );
 }
