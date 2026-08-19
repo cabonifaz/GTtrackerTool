@@ -157,7 +157,11 @@ function CargaMasiva({
           Descargar plantilla
         </a>
       </div>
-      <form onSubmit={subirArchivo} className="grid gap-2 sm:grid-cols-4 items-end">
+      <p className="text-xs text-gray-500">
+        El periodo de cada fila sale de la columna &quot;Periodo actividades realizadas&quot; del archivo. Si un
+        recurso no coincide con ningun usuario ya creado, se crea automaticamente (rol Talento, clave generica).
+      </p>
+      <form onSubmit={subirArchivo} className="grid gap-2 sm:grid-cols-3 items-end">
         <select name="idProyecto" required className="rounded-md border border-gray-300 px-3 py-2 text-sm">
           <option value="">Proyecto</option>
           {proyectos.map((p) => (
@@ -166,18 +170,10 @@ function CargaMasiva({
             </option>
           ))}
         </select>
-        <div className="space-y-1">
-          <label className="text-xs text-gray-500">Periodo desde</label>
-          <input type="date" name="periodoDesde" required className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs text-gray-500">Periodo hasta</label>
-          <input type="date" name="periodoHasta" required className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
-        </div>
         <input type="file" name="archivo" required accept=".xlsx" className="text-sm" />
         <button
           disabled={subiendo}
-          className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50 sm:col-span-4 sm:w-fit"
+          className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
         >
           {subiendo && <Spinner />}
           Subir archivo

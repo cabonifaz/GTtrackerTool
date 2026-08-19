@@ -1,17 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
+import bcrypt from "bcryptjs";
 import { requireAdmin } from "@/lib/apiHelpers";
 import { BusinessError } from "@/lib/db";
 import { upsertAsignacion } from "@/lib/services/actividadService";
-import { listarUsuarios } from "@/lib/services/usuarioService";
+import { crearUsuario, listarUsuarios } from "@/lib/services/usuarioService";
+import { PASSWORD_GENERICA } from "@/lib/constants";
 import { ImportarAsignacionResultado } from "@/lib/types";
 
 // Carga masiva de asignaciones (proveedor/OC-OS/iniciativa/lider tecnico) por
-// talento y periodo, para proyectos tipo Actividades por Excel. El periodo
-// (desde/hasta) se elige una sola vez para toda la carga, igual que el
-// cliente/moneda en la carga de tarifarios -- no viene por fila. La columna
-// "Detalle de Entregable" del archivo se ignora a proposito: esa parte la
-// completa el talento despues, dentro de la app.
+// talento, para proyectos tipo Actividades por Excel. El periodo (desde/
+// hasta) de cada fila sale de la columna "Periodo actividades realizadas"
+// del propio archivo -- no se pide aparte. Esa columna trae la fecha de
+// corte del mes (ej. 31/07/2026); el periodo de esa fila queda del dia 1
+// de ese mes hasta esa fecha. La columna "Detalle de Entregable" se
+// ignora a proposito: esa parte la completa el talento despues, dentro
+// de la app. Si el "Nombre de recurso asignado" no coincide con ningun
+// usuario ya creado, se crea uno nuevo automaticamente (rol Talento,
+// clave generica, email sintetico) en vez de fallar la fila.
 
 function celdaTexto(valor: ExcelJS.CellValue): string {
   if (valor === null || valor === undefined) return "";
@@ -40,6 +46,39 @@ function normalizarNombre(valor: string): string {
     .trim();
 }
 
+function celdaFecha(valor: ExcelJS.CellValue): Date | null {
+  if (valor instanceof Date) return valor;
+  const texto = celdaTexto(valor);
+  const match = texto.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!match) return null;
+  const [, d, m, y] = match;
+  const fecha = new Date(Number(y), Number(m) - 1, Number(d));
+  return isNaN(fecha.getTime()) ? null : fecha;
+}
+
+function aFechaISO(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function primerDiaDelMes(d: Date): string {
+  return aFechaISO(new Date(d.getFullYear(), d.getMonth(), 1));
+}
+
+function partirNombre(nombreCompleto: string): { nombres: string; apellidos: string } {
+  const partes = nombreCompleto.trim().split(/\s+/).filter(Boolean);
+  if (partes.length <= 1) return { nombres: nombreCompleto.trim(), apellidos: nombreCompleto.trim() };
+  return { nombres: partes[0], apellidos: partes.slice(1).join(" ") };
+}
+
+function slugEmail(valor: string): string {
+  return valor
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "");
+}
+
 export async function POST(req: NextRequest) {
   const session = await requireAdmin();
   if (session instanceof NextResponse) return session;
@@ -47,14 +86,12 @@ export async function POST(req: NextRequest) {
   const form = await req.formData();
   const archivo = form.get("archivo");
   const idProyecto = Number(form.get("idProyecto"));
-  const periodoDesde = String(form.get("periodoDesde") ?? "");
-  const periodoHasta = String(form.get("periodoHasta") ?? "");
 
   if (!(archivo instanceof Blob)) {
     return NextResponse.json({ error: "Falta el archivo a importar" }, { status: 400 });
   }
-  if (!idProyecto || !periodoDesde || !periodoHasta) {
-    return NextResponse.json({ error: "Falta elegir el proyecto y el periodo (desde/hasta)" }, { status: 400 });
+  if (!idProyecto) {
+    return NextResponse.json({ error: "Falta elegir el proyecto" }, { status: 400 });
   }
 
   const buffer = Buffer.from(await archivo.arrayBuffer());
@@ -74,21 +111,22 @@ export async function POST(req: NextRequest) {
   const colProveedor = columnas.get("proveedor");
   const colOcOs = columnas.get("n oc/o") ?? columnas.get("oc/os") ?? columnas.get("nro oc/o");
   const colIniciativa = columnas.get("numero y nombre de iniciativa");
-  const colPeriodoRef = columnas.get("periodo actividades realizadas");
+  const colPeriodo = columnas.get("periodo actividades realizadas");
   const colRecurso = columnas.get("nombre de recurso asignado");
   const colLider = columnas.get("lider tecnico asociado");
 
-  if (!colRecurso) {
+  if (!colRecurso || !colPeriodo) {
     return NextResponse.json(
-      { error: "Falta la columna 'Nombre de recurso asignado' en el archivo" },
+      { error: "Faltan columnas en el archivo: Nombre de recurso asignado, Periodo actividades realizadas" },
       { status: 400 }
     );
   }
 
+  const empresaSlug = session.user.empresaSlug ?? "empresa";
   const usuarios = await listarUsuarios(session.user.idEmpresa!);
-  const usuarioPorNombre = new Map(
-    usuarios.filter((u) => u.activo).map((u) => [normalizarNombre(`${u.nombres} ${u.apellidos}`), u.id_usuario])
-  );
+  const usuarioPorNombre = new Map(usuarios.map((u) => [normalizarNombre(`${u.nombres} ${u.apellidos}`), u.id_usuario]));
+  const emailsExistentes = new Set(usuarios.map((u) => u.email.toLowerCase()));
+  const passwordHash = await bcrypt.hash(PASSWORD_GENERICA, 10);
 
   const resultados: ImportarAsignacionResultado[] = [];
 
@@ -98,16 +136,45 @@ export async function POST(req: NextRequest) {
     const proveedor = colProveedor ? celdaTexto(row.getCell(colProveedor).value) || null : null;
     const ocOs = colOcOs ? celdaTexto(row.getCell(colOcOs).value) || null : null;
     const iniciativa = colIniciativa ? celdaTexto(row.getCell(colIniciativa).value) || null : null;
-    const periodoRef = colPeriodoRef ? celdaTexto(row.getCell(colPeriodoRef).value) || null : null;
+    const periodoTexto = celdaTexto(row.getCell(colPeriodo).value);
     const lider = colLider ? celdaTexto(row.getCell(colLider).value) || null : null;
 
     if (!recurso && !proveedor && !iniciativa) continue; // fila vacia, se omite en silencio
 
     try {
       if (!recurso) throw new Error("Falta el nombre de recurso asignado");
-      const idUsuario = usuarioPorNombre.get(normalizarNombre(recurso));
+
+      const periodoFecha = celdaFecha(row.getCell(colPeriodo).value);
+      if (!periodoFecha) {
+        throw new Error(`Periodo invalido: "${periodoTexto}" (se espera una fecha, ej. 31/07/2026)`);
+      }
+
+      let idUsuario = usuarioPorNombre.get(normalizarNombre(recurso));
+      let mensajeCreacion = "";
+
       if (!idUsuario) {
-        throw new Error(`No se encontro un usuario activo con el nombre "${recurso}" -- creelo primero en Usuarios`);
+        const { nombres, apellidos } = partirNombre(recurso);
+        let email = `${slugEmail(nombres)}.${slugEmail(apellidos)}@${empresaSlug}.local`;
+        let sufijo = 2;
+        while (emailsExistentes.has(email)) {
+          email = `${slugEmail(nombres)}.${slugEmail(apellidos)}${sufijo}@${empresaSlug}.local`;
+          sufijo++;
+        }
+
+        const creado = await crearUsuario(
+          nombres,
+          apellidos,
+          email,
+          passwordHash,
+          "TALENTO",
+          session.user.idEmpresa!,
+          null,
+          session.user.email ?? ""
+        );
+        idUsuario = creado[0].id_usuario;
+        usuarioPorNombre.set(normalizarNombre(recurso), idUsuario);
+        emailsExistentes.add(email);
+        mensajeCreacion = ` (usuario nuevo creado: ${email}, clave generica)`;
       }
 
       await upsertAsignacion(
@@ -116,14 +183,14 @@ export async function POST(req: NextRequest) {
         proveedor,
         ocOs,
         iniciativa,
-        periodoDesde,
-        periodoHasta,
-        periodoRef,
+        primerDiaDelMes(periodoFecha),
+        aFechaISO(periodoFecha),
+        periodoTexto,
         lider,
         session.user.idEmpresa!,
         session.user.email ?? ""
       );
-      resultados.push({ fila, ok: true, mensaje: "Cargado", recurso });
+      resultados.push({ fila, ok: true, mensaje: `Cargado${mensajeCreacion}`, recurso });
     } catch (err) {
       resultados.push({
         fila,

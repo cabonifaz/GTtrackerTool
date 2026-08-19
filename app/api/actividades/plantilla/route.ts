@@ -3,11 +3,11 @@ import ExcelJS from "exceljs";
 import { requireAdmin, handleApiError } from "@/lib/apiHelpers";
 
 // Plantilla para la carga masiva de asignaciones (proyectos tipo
-// Actividades por Excel). El periodo (desde/hasta) y el proyecto se
-// eligen una sola vez en la pantalla de carga, no van por fila -- por
-// eso no estan como columnas aca. La columna Detalle de Entregable se
-// deja de ejemplo pero se ignora al importar: el talento la completa
-// despues, dentro de la app.
+// Actividades por Excel). El proyecto se elige una sola vez en la
+// pantalla de carga; el periodo de cada fila sale de la columna
+// "Periodo actividades realizadas" del propio archivo. La columna
+// Detalle de Entregable se deja de ejemplo pero se ignora al importar:
+// el talento la completa despues, dentro de la app.
 export async function GET() {
   const session = await requireAdmin();
   if (session instanceof NextResponse) return session;
@@ -33,12 +33,12 @@ export async function GET() {
       ["Como llenar la plantilla"],
       [""],
       ["Proveedor, N° OC/O, Número y nombre de Iniciativa, Lider Tecnico Asociado: texto libre, opcional."],
-      ["Periodo actividades realizadas: solo de referencia (texto libre) -- el rango real que controla el acceso se elige en la pantalla antes de subir el archivo."],
+      ["Periodo actividades realizadas: obligatorio, debe ser una fecha (ej. 31/07/2026). Esa fecha se toma como el fin del periodo; el inicio queda automaticamente en el dia 1 de ese mismo mes."],
       ["Detalle de Entregable: dejar vacio. Esa columna la completa cada talento dentro de la app (hasta 5 actividades por periodo)."],
-      ["Nombre de recurso asignado: obligatorio. Debe coincidir con el nombre y apellido de un usuario ya creado en Usuarios."],
+      ["Nombre de recurso asignado: obligatorio. Si coincide con el nombre y apellido de un usuario ya creado en Usuarios, se usa ese. Si no coincide con nadie, se crea un usuario nuevo automaticamente (rol Talento, clave generica -- avisale a la persona para que la cambie en su primer ingreso)."],
       [""],
-      ["El proyecto y el periodo (desde/hasta) se eligen una sola vez en la pantalla, antes de subir el archivo -- todas las filas de una misma carga comparten el mismo periodo."],
-      ["Si vuelves a subir una fila para el mismo talento y el mismo periodo, se actualiza (proveedor, OC/OS, iniciativa, lider) en vez de duplicarse."],
+      ["El proyecto se elige una sola vez en la pantalla, antes de subir el archivo."],
+      ["Si vuelves a subir una fila para el mismo talento y el mismo periodo (mismo mes), se actualiza (proveedor, OC/OS, iniciativa, lider) en vez de duplicarse."],
       [""],
       ["Ejemplo:"],
       ["Proveedor", "N° OC/O", "Número y nombre de Iniciativa", "Periodo actividades realizadas", "Detalle de Entregable", "Nombre de recurso asignado", "Lider Tecnico Asociado"],
