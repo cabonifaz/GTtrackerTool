@@ -369,6 +369,12 @@ BEGIN
       AND (p_id_proyecto IS NULL OR t.id_proyecto = p_id_proyecto)
     ORDER BY t.fecha_creacion DESC;
   ELSE
+    -- Un talento ve sus propias tareas y las que creo un Admin, pero no
+    -- las creadas por otros talentos del mismo proyecto (aunque compartan
+    -- proyecto asignado). creado_por es el email con el que se creo la
+    -- tarea; se resuelve el rol de ese creador para distinguir Admin de
+    -- otro talento (un creador sin match en usuarios -- caso raro -- se
+    -- deja visible en vez de ocultarlo por una coincidencia que fallo).
     SELECT t.id_tarea, t.id_proyecto, pr.nombre AS proyecto, t.nombre, t.descripcion,
            e.codigo AS codigo_estado, e.valor AS estado, t.activo, t.fecha_creacion,
            COALESCE(tot.total_segundos, 0) AS total_segundos
@@ -378,6 +384,9 @@ BEGIN
                                 AND up.id_usuario = p_id_usuario_actor
                                 AND up.activo = 1
     JOIN maestro e ON e.id_maestro = t.id_estado
+    JOIN usuarios ua ON ua.id_usuario = p_id_usuario_actor
+    LEFT JOIN usuarios creador ON creador.email = t.creado_por
+    LEFT JOIN maestro rc ON rc.id_maestro = creador.id_rol
     LEFT JOIN (
       SELECT id_tarea, SUM(duracion_segundos) AS total_segundos
       FROM registros_tiempo
@@ -387,6 +396,7 @@ BEGIN
     WHERE t.activo = 1
       AND pr.id_empresa = p_id_empresa_actor
       AND (p_id_proyecto IS NULL OR t.id_proyecto = p_id_proyecto)
+      AND (t.creado_por = ua.email OR rc.codigo IS NULL OR rc.codigo = 'ADMIN')
     ORDER BY t.fecha_creacion DESC;
   END IF;
 END $$
