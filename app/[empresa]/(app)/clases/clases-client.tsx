@@ -49,7 +49,8 @@ export default function ClasesClient({
   const [accionando, setAccionando] = useState<number | null>(null);
   const [reprogramandoId, setReprogramandoId] = useState<number | null>(null);
 
-  const profesores = talentosIniciales.filter((u) => u.codigo_rol === "TALENTO" && u.activo);
+  // El Admin tambien cuenta como talento: puede figurar como profesor de un grupo.
+  const profesores = talentosIniciales.filter((u) => u.activo);
 
   async function buscarSesiones() {
     setCargando(true);

@@ -57,8 +57,9 @@ export default function TareasClient({
   const [tareasFiltradas, setTareasFiltradas] = useState<Tarea[] | null>(null);
   const [buscandoTareasFiltradas, setBuscandoTareasFiltradas] = useState(false);
 
-  // Asignacion de talentos a proyectos (solo Admin)
-  const [talentos] = useState<Usuario[]>(talentosIniciales.filter((u) => u.codigo_rol === "TALENTO"));
+  // Asignacion de talentos a proyectos (solo Admin) -- el Admin tambien
+  // cuenta como talento: puede asignarse a si mismo a un proyecto.
+  const [talentos] = useState<Usuario[]>(talentosIniciales.filter((u) => u.activo));
   const [panelAbierto, setPanelAbierto] = useState<number | null>(null);
   const [asignadosPorProyecto, setAsignadosPorProyecto] = useState<Record<number, UsuarioAsignado[]>>({});
   const [procesandoAsignacion, setProcesandoAsignacion] = useState<Set<string>>(new Set());
