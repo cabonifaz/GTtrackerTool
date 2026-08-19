@@ -88,6 +88,8 @@ export interface Cliente {
   fecha_creacion: string;
 }
 
+export type CodigoTipoProyecto = "CRONOMETRO" | "CLASES" | "ACTIVIDADES_EXCEL";
+
 export interface Proyecto {
   id_proyecto: number;
   id_cliente: number | null;
@@ -96,6 +98,8 @@ export interface Proyecto {
   descripcion: string | null;
   codigo_estado: string;
   estado: string;
+  codigo_tipo_proyecto: CodigoTipoProyecto;
+  tipo_proyecto: string;
   activo: number;
   fecha_creacion: string;
 }

@@ -251,6 +251,7 @@ export default function TareasClient({
         idCliente: idCliente ? Number(idCliente) : null,
         nombre: form.get("nombre"),
         descripcion: form.get("descripcion") || null,
+        codigoTipoProyecto: form.get("codigoTipoProyecto") || "CRONOMETRO",
       }),
     });
     if (!res.ok) {
@@ -591,7 +592,7 @@ export default function TareasClient({
           {tab === "proyectos" && (
             <div className="space-y-4">
               {esAdmin && (
-                <form onSubmit={crearProyecto} className="grid gap-2 sm:grid-cols-3">
+                <form onSubmit={crearProyecto} className="grid gap-2 sm:grid-cols-4">
                   <select name="idCliente" className="rounded-md border border-gray-300 px-3 py-2 text-sm">
                     <option value="">Sin cliente</option>
                     {clientes.map((c) => (
@@ -611,9 +612,21 @@ export default function TareasClient({
                     placeholder="Descripcion (opcional)"
                     className="rounded-md border border-gray-300 px-3 py-2 text-sm"
                   />
+                  <select
+                    name="codigoTipoProyecto"
+                    defaultValue="CRONOMETRO"
+                    className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  >
+                    <option value="CRONOMETRO">Cronometro (tareas)</option>
+                    <option value="CLASES">Clases</option>
+                    <option value="ACTIVIDADES_EXCEL">Actividades por Excel</option>
+                  </select>
+                  <p className="text-xs text-gray-400 sm:col-span-4">
+                    El tipo de proyecto no se puede cambiar despues de crearlo.
+                  </p>
                   <button
                     disabled={enviando}
-                    className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50 sm:col-span-3 sm:w-fit"
+                    className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50 sm:col-span-4 sm:w-fit"
                   >
                     {enviando && <Spinner />}
                     Agregar
@@ -627,6 +640,9 @@ export default function TareasClient({
                       <span>
                         {p.nombre}
                         {p.cliente && <span className="text-gray-400"> · {p.cliente}</span>}
+                        {p.codigo_tipo_proyecto !== "CRONOMETRO" && (
+                          <Badge tono="neutral">{p.tipo_proyecto}</Badge>
+                        )}
                       </span>
                       <div className="flex items-center gap-3">
                         <span className="text-gray-500">{p.estado}</span>

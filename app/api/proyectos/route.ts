@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   const session = await requireAdmin();
   if (session instanceof NextResponse) return session;
 
-  const { idCliente, nombre, descripcion } = await req.json();
+  const { idCliente, nombre, descripcion, codigoTipoProyecto } = await req.json();
 
   try {
     const result = await crearProyecto(
@@ -26,7 +26,8 @@ export async function POST(req: NextRequest) {
       nombre,
       descripcion ?? null,
       session.user.idEmpresa!,
-      session.user.email ?? ""
+      session.user.email ?? "",
+      codigoTipoProyecto ?? "CRONOMETRO"
     );
     return NextResponse.json(result[0], { status: 201 });
   } catch (err) {

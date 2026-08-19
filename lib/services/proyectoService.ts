@@ -6,7 +6,8 @@ export function crearProyecto(
   nombre: string,
   descripcion: string | null,
   idEmpresa: number,
-  creadoPor: string
+  creadoPor: string,
+  codigoTipoProyecto: string = "CRONOMETRO"
 ) {
   return executeProcedure<{ id_proyecto: number }>("sp_proyecto_crear", [
     idCliente,
@@ -14,6 +15,14 @@ export function crearProyecto(
     descripcion,
     idEmpresa,
     creadoPor,
+    codigoTipoProyecto,
+  ]);
+}
+
+export function tieneProyectoDeTipo(codigoTipoProyecto: string, idEmpresaActor: number) {
+  return executeProcedure<{ id_proyecto: number }>("sp_proyecto_listar_por_tipo", [
+    codigoTipoProyecto,
+    idEmpresaActor,
   ]);
 }
 

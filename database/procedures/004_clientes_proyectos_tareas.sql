@@ -91,14 +91,17 @@ DROP PROCEDURE IF EXISTS sp_proyecto_actualizar_pais_calendario $$
 
 DROP PROCEDURE IF EXISTS sp_proyecto_crear $$
 CREATE PROCEDURE sp_proyecto_crear(
-  IN p_id_cliente   INT UNSIGNED,
-  IN p_nombre       VARCHAR(150),
-  IN p_descripcion  VARCHAR(255),
-  IN p_id_empresa   INT UNSIGNED,
-  IN p_creado_por   VARCHAR(150)
+  IN p_id_cliente          INT UNSIGNED,
+  IN p_nombre              VARCHAR(150),
+  IN p_descripcion         VARCHAR(255),
+  IN p_id_empresa          INT UNSIGNED,
+  IN p_creado_por          VARCHAR(150),
+  IN p_codigo_tipo_proyecto VARCHAR(50)
 )
 BEGIN
   DECLARE v_id_estado INT UNSIGNED;
+  DECLARE v_id_tipo_proyecto INT UNSIGNED;
+  DECLARE v_codigo_tipo VARCHAR(50);
 
   IF p_id_cliente IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM clientes WHERE id_cliente = p_id_cliente AND id_empresa = p_id_empresa AND activo = 1
@@ -106,11 +109,22 @@ BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cliente invalido o inactivo';
   END IF;
 
+  -- Llamadas existentes (previas a esta feature) no mandan tipo: se
+  -- asume CRONOMETRO para no cambiar el comportamiento actual.
+  SET v_codigo_tipo = COALESCE(NULLIF(p_codigo_tipo_proyecto, ''), 'CRONOMETRO');
+
+  SELECT id_maestro INTO v_id_tipo_proyecto
+  FROM maestro WHERE tipo_maestro = 'TIPO_PROYECTO' AND codigo = v_codigo_tipo AND activo = 1 LIMIT 1;
+
+  IF v_id_tipo_proyecto IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Tipo de proyecto invalido';
+  END IF;
+
   SELECT id_maestro INTO v_id_estado
   FROM maestro WHERE tipo_maestro = 'ESTADO_PROYECTO' AND codigo = 'ACTIVO' LIMIT 1;
 
-  INSERT INTO proyectos (id_cliente, nombre, descripcion, id_estado, id_empresa, creado_por)
-  VALUES (p_id_cliente, p_nombre, p_descripcion, v_id_estado, p_id_empresa, p_creado_por);
+  INSERT INTO proyectos (id_cliente, nombre, descripcion, id_estado, id_tipo_proyecto, id_empresa, creado_por)
+  VALUES (p_id_cliente, p_nombre, p_descripcion, v_id_estado, v_id_tipo_proyecto, p_id_empresa, p_creado_por);
 
   SELECT LAST_INSERT_ID() AS id_proyecto;
 END $$
@@ -169,24 +183,46 @@ CREATE PROCEDURE sp_proyecto_listar(
 BEGIN
   IF p_codigo_rol_actor = 'ADMIN' THEN
     SELECT p.id_proyecto, p.id_cliente, c.nombre AS cliente, p.nombre, p.descripcion,
-           e.codigo AS codigo_estado, e.valor AS estado, p.activo, p.fecha_creacion
+           e.codigo AS codigo_estado, e.valor AS estado,
+           t.codigo AS codigo_tipo_proyecto, t.valor AS tipo_proyecto,
+           p.activo, p.fecha_creacion
     FROM proyectos p
     LEFT JOIN clientes c ON c.id_cliente = p.id_cliente
     JOIN maestro e ON e.id_maestro = p.id_estado
+    JOIN maestro t ON t.id_maestro = p.id_tipo_proyecto
     WHERE p.id_empresa = p_id_empresa_actor
     ORDER BY p.nombre;
   ELSE
     SELECT p.id_proyecto, p.id_cliente, c.nombre AS cliente, p.nombre, p.descripcion,
-           e.codigo AS codigo_estado, e.valor AS estado, p.activo, p.fecha_creacion
+           e.codigo AS codigo_estado, e.valor AS estado,
+           t.codigo AS codigo_tipo_proyecto, t.valor AS tipo_proyecto,
+           p.activo, p.fecha_creacion
     FROM proyectos p
     JOIN usuarios_proyectos up ON up.id_proyecto = p.id_proyecto
                                 AND up.id_usuario = p_id_usuario_actor
                                 AND up.activo = 1
     LEFT JOIN clientes c ON c.id_cliente = p.id_cliente
     JOIN maestro e ON e.id_maestro = p.id_estado
+    JOIN maestro t ON t.id_maestro = p.id_tipo_proyecto
     WHERE p.activo = 1 AND p.id_empresa = p_id_empresa_actor
     ORDER BY p.nombre;
   END IF;
+END $$
+
+DROP PROCEDURE IF EXISTS sp_proyecto_listar_por_tipo $$
+CREATE PROCEDURE sp_proyecto_listar_por_tipo(
+  IN p_codigo_tipo_proyecto VARCHAR(50),
+  IN p_id_empresa_actor     INT UNSIGNED
+)
+BEGIN
+  -- Usado por el NavBar/paginas server-side para decidir que links de
+  -- tipo de proyecto mostrar (Clases/Actividades), sin traer todos los
+  -- proyectos ni su detalle.
+  SELECT p.id_proyecto
+  FROM proyectos p
+  JOIN maestro t ON t.id_maestro = p.id_tipo_proyecto
+  WHERE p.id_empresa = p_id_empresa_actor AND p.activo = 1 AND t.codigo = p_codigo_tipo_proyecto
+  LIMIT 1;
 END $$
 
 -- ------------------------------ TAREAS -------------------------------
