@@ -9,10 +9,11 @@ import SyncStatus from "@/components/SyncStatus";
 import PushToggle from "@/components/PushToggle";
 import TenantLogo from "@/components/TenantLogo";
 
-const links: { href: string; label: string; adminOnly?: boolean }[] = [
+const links: { href: string; label: string; adminOnly?: boolean; requiereClases?: boolean }[] = [
   { href: "cronometro", label: "Cronometro" },
   { href: "registros", label: "Mis Registros" },
   { href: "tareas", label: "Tareas" },
+  { href: "clases", label: "Clases", requiereClases: true },
   { href: "reportes", label: "Reportes" },
   { href: "calendario", label: "Calendario" },
   { href: "dias-off", label: "Dias Off" },
@@ -25,12 +26,14 @@ export default function NavBar({
   empresaSlug,
   empresaNombre,
   tieneLogo,
+  tieneClases,
 }: {
   nombre: string;
   rol: CodigoRol;
   empresaSlug: string;
   empresaNombre: string;
   tieneLogo: boolean;
+  tieneClases: boolean;
 }) {
   const pathname = usePathname();
   const [menuAbierto, setMenuAbierto] = useState(false);
@@ -39,7 +42,9 @@ export default function NavBar({
     setMenuAbierto(false);
   }, [pathname]);
 
-  const linksVisibles = links.filter((link) => !link.adminOnly || rol === "ADMIN");
+  const linksVisibles = links.filter(
+    (link) => (!link.adminOnly || rol === "ADMIN") && (!link.requiereClases || tieneClases)
+  );
   const base = `/${empresaSlug}`;
 
   function activo(href: string) {

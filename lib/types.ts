@@ -104,6 +104,74 @@ export interface Proyecto {
   fecha_creacion: string;
 }
 
+export interface GrupoClase {
+  id_grupo: number;
+  id_proyecto: number;
+  proyecto: string;
+  nombre: string;
+  id_profesor: number;
+  profesor: string;
+  activo: number;
+  fecha_creacion: string;
+}
+
+export interface HorarioGrupo {
+  id_horario: number;
+  dia_semana: number; // 1=Lunes .. 7=Domingo
+  hora_inicio: string;
+  hora_fin: string;
+  fecha_desde: string;
+}
+
+export type CodigoEstadoSesionClase = "PLANIFICADA" | "REPROGRAMADA" | "DICTADA" | "CANCELADA";
+
+export interface SesionClase {
+  id_sesion: number;
+  id_grupo: number;
+  grupo: string;
+  proyecto: string;
+  id_profesor: number;
+  profesor: string;
+  fecha_planificada: string;
+  hora_inicio_planificada: string;
+  hora_fin_planificada: string;
+  fecha_efectiva: string | null;
+  hora_inicio_efectiva: string | null;
+  hora_fin_efectiva: string | null;
+  fecha_final: string;
+  hora_inicio_final: string;
+  hora_fin_final: string;
+  tema: string | null;
+  codigo_estado: CodigoEstadoSesionClase;
+  estado: string;
+}
+
+export interface RegistroClaseActivo {
+  id_registro: number;
+  id_sesion: number;
+  fecha_planificada: string;
+  tema: string | null;
+  id_grupo: number;
+  grupo: string;
+  fecha_hora_inicio_real: string;
+}
+
+export interface ReporteClasesPorProfesor {
+  id_profesor: number;
+  profesor: string;
+  sesiones_dictadas: number;
+  total_segundos: number;
+}
+
+export interface ReporteClasesPorGrupo {
+  id_grupo: number;
+  grupo: string;
+  proyecto: string;
+  profesor: string;
+  sesiones_dictadas: number;
+  total_segundos: number;
+}
+
 export interface MiProyecto {
   id_proyecto: number;
   proyecto: string;

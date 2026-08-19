@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { obtenerEmpresaPorSlug } from "@/lib/services/empresaService";
+import { tieneProyectoDeTipo } from "@/lib/services/proyectoService";
 import NavBar from "./nav-bar";
 
 export default async function AppLayout({
@@ -39,6 +40,11 @@ export default async function AppLayout({
     );
   }
 
+  // Los links de tipos de proyecto opcionales (Clases, Actividades) solo
+  // se muestran si la empresa realmente tiene un proyecto de ese tipo --
+  // no le agregan ruido a una empresa que solo usa el cronometro normal.
+  const tieneClases = await tieneProyectoDeTipo("CLASES", session.user.idEmpresa!);
+
   return (
     <div className="min-h-screen">
       <style>{`:root{--color-primario:${empresa.color_primario};--color-secundario:${empresa.color_secundario};}`}</style>
@@ -48,6 +54,7 @@ export default async function AppLayout({
         empresaSlug={params.empresa}
         empresaNombre={empresa.nombre}
         tieneLogo={!!empresa.tiene_logo}
+        tieneClases={tieneClases.length > 0}
       />
       <main className="max-w-5xl mx-auto px-4 py-6">{children}</main>
     </div>

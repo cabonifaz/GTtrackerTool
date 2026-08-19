@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { listarUsuarios } from "@/lib/services/usuarioService";
 import { reporteHorasDetalle } from "@/lib/services/reporteService";
-import { listarProyectos } from "@/lib/services/proyectoService";
+import { listarProyectos, tieneProyectoDeTipo } from "@/lib/services/proyectoService";
 import ReportesClient from "./reportes-client";
 
 function primerDiaMes() {
@@ -21,10 +21,11 @@ export default async function ReportesPage() {
   const fechaInicio = primerDiaMes();
   const fechaFin = hoy();
 
-  const [usuarios, filas, proyectos] = await Promise.all([
+  const [usuarios, filas, proyectos, tieneClases] = await Promise.all([
     esAdmin ? listarUsuarios(idEmpresa) : Promise.resolve([]),
     reporteHorasDetalle(esAdmin ? [] : [session!.user.idUsuario], fechaInicio, fechaFin, idEmpresa),
     esAdmin ? listarProyectos(session!.user.idUsuario, session!.user.rol, idEmpresa) : Promise.resolve([]),
+    esAdmin ? tieneProyectoDeTipo("CLASES", idEmpresa) : Promise.resolve([]),
   ]);
 
   return (
@@ -35,6 +36,7 @@ export default async function ReportesPage() {
       fechaInicioInicial={fechaInicio}
       fechaFinInicial={fechaFin}
       proyectosIniciales={proyectos}
+      tieneClases={tieneClases.length > 0}
     />
   );
 }

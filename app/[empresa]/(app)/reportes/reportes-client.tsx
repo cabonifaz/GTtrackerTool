@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import {
   Proyecto,
   ProyeccionRow,
+  ReporteClasesPorGrupo,
+  ReporteClasesPorProfesor,
   ReporteCostoRow,
   ReporteDetalleRow,
   ReporteTareaRow,
@@ -24,7 +26,7 @@ const MESES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
-type Vista = "detalle" | "por-tarea" | "costos" | "resumen" | "proyeccion";
+type Vista = "detalle" | "por-tarea" | "costos" | "resumen" | "proyeccion" | "clases";
 
 const SEMAFORO: Record<ResumenAvanceRow["semaforo"], { color: string; label: string }> = {
   VERDE: { color: "bg-green-500", label: "Al dia" },
@@ -39,6 +41,7 @@ export default function ReportesClient({
   fechaInicioInicial,
   fechaFinInicial,
   proyectosIniciales,
+  tieneClases,
 }: {
   esAdmin: boolean;
   usuariosIniciales: Usuario[];
@@ -46,6 +49,7 @@ export default function ReportesClient({
   fechaInicioInicial: string;
   fechaFinInicial: string;
   proyectosIniciales: Proyecto[];
+  tieneClases: boolean;
 }) {
   const [vista, setVista] = useState<Vista>("detalle");
   const [usuarios] = useState<Usuario[]>(usuariosIniciales);
@@ -93,6 +97,32 @@ export default function ReportesClient({
   const [filasProyeccion, setFilasProyeccion] = useState<ProyeccionRow[]>([]);
   const [cargandoProyeccion, setCargandoProyeccion] = useState(false);
   const [buscoProyeccion, setBuscoProyeccion] = useState(false);
+
+  // Clases: por profesor / por grupo (solo Admin, solo si hay proyectos tipo Clases)
+  const [clasesFechaInicio, setClasesFechaInicio] = useState(fechaInicioInicial);
+  const [clasesFechaFin, setClasesFechaFin] = useState(fechaFinInicial);
+  const [filasClasesPorProfesor, setFilasClasesPorProfesor] = useState<ReporteClasesPorProfesor[]>([]);
+  const [filasClasesPorGrupo, setFilasClasesPorGrupo] = useState<ReporteClasesPorGrupo[]>([]);
+  const [cargandoClases, setCargandoClases] = useState(false);
+  const [buscoClases, setBuscoClases] = useState(false);
+
+  async function buscarClases() {
+    setCargandoClases(true);
+    setError(null);
+    try {
+      const qs = new URLSearchParams({ fechaInicio: clasesFechaInicio, fechaFin: clasesFechaFin });
+      const [porProfesor, porGrupo] = await Promise.all([
+        fetchJson<ReporteClasesPorProfesor[]>(`/api/reportes/clases-por-profesor?${qs.toString()}`),
+        fetchJson<ReporteClasesPorGrupo[]>(`/api/reportes/clases-por-grupo?${qs.toString()}`),
+      ]);
+      setFilasClasesPorProfesor(porProfesor);
+      setFilasClasesPorGrupo(porGrupo);
+      setBuscoClases(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo generar el reporte de clases");
+    }
+    setCargandoClases(false);
+  }
 
   function queryString() {
     const params = new URLSearchParams({ fechaInicio, fechaFin });
@@ -345,6 +375,18 @@ export default function ReportesClient({
             }`}
           >
             Proyeccion
+          </button>
+        )}
+        {esAdmin && tieneClases && (
+          <button
+            onClick={() => setVista("clases")}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
+              vista === "clases"
+                ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+                : "border-transparent text-gray-500"
+            }`}
+          >
+            Clases
           </button>
         )}
       </div>
@@ -920,6 +962,110 @@ export default function ReportesClient({
               </table>
             )}
           </div>
+        </div>
+      )}
+
+      {vista === "clases" && esAdmin && tieneClases && (
+        <div className="space-y-4">
+          <div className="rounded-lg border border-gray-200 bg-white p-4 flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Desde</label>
+              <input
+                type="date"
+                value={clasesFechaInicio}
+                onChange={(e) => setClasesFechaInicio(e.target.value)}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Hasta</label>
+              <input
+                type="date"
+                value={clasesFechaFin}
+                onChange={(e) => setClasesFechaFin(e.target.value)}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <button
+              onClick={buscarClases}
+              disabled={cargandoClases}
+              className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+            >
+              {cargandoClases && <Spinner />}
+              Generar reporte
+            </button>
+          </div>
+
+          {cargandoClases ? (
+            <CargandoInline />
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-lg border border-gray-200 bg-white overflow-x-auto">
+                <p className="px-4 py-2 text-sm font-medium border-b border-gray-200">Por profesor</p>
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-left text-gray-500">
+                    <tr>
+                      <th className="px-4 py-2 font-medium">Profesor</th>
+                      <th className="px-4 py-2 font-medium text-right">Sesiones</th>
+                      <th className="px-4 py-2 font-medium text-right">Horas</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filasClasesPorProfesor.map((f) => (
+                      <tr key={f.id_profesor}>
+                        <td className="px-4 py-2">{f.profesor}</td>
+                        <td className="px-4 py-2 text-right font-mono tabular-nums">{f.sesiones_dictadas}</td>
+                        <td className="px-4 py-2 text-right font-mono tabular-nums">
+                          {(Number(f.total_segundos) / 3600).toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                    {buscoClases && filasClasesPorProfesor.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="px-4 py-6 text-center text-gray-400">
+                          Sin sesiones dictadas en este rango
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-white overflow-x-auto">
+                <p className="px-4 py-2 text-sm font-medium border-b border-gray-200">Por grupo</p>
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-left text-gray-500">
+                    <tr>
+                      <th className="px-4 py-2 font-medium">Grupo</th>
+                      <th className="px-4 py-2 font-medium text-right">Sesiones</th>
+                      <th className="px-4 py-2 font-medium text-right">Horas</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filasClasesPorGrupo.map((f) => (
+                      <tr key={f.id_grupo}>
+                        <td className="px-4 py-2">
+                          {f.grupo}
+                          <span className="text-gray-400"> · {f.proyecto}</span>
+                        </td>
+                        <td className="px-4 py-2 text-right font-mono tabular-nums">{f.sesiones_dictadas}</td>
+                        <td className="px-4 py-2 text-right font-mono tabular-nums">
+                          {(Number(f.total_segundos) / 3600).toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                    {buscoClases && filasClasesPorGrupo.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="px-4 py-6 text-center text-gray-400">
+                          Sin sesiones dictadas en este rango
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
