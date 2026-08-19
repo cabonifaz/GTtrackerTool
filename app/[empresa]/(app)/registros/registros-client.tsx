@@ -59,6 +59,8 @@ export default function RegistrosClient({
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [editInicio, setEditInicio] = useState("");
   const [editFin, setEditFin] = useState("");
+  const [editInicioOriginal, setEditInicioOriginal] = useState("");
+  const [editFinOriginal, setEditFinOriginal] = useState("");
   const [editDescripcion, setEditDescripcion] = useState("");
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [eliminandoId, setEliminandoId] = useState<number | null>(null);
@@ -152,18 +154,28 @@ export default function RegistrosClient({
     setEditandoId(fila.id_registro);
     setEditInicio(aInputDatetimeLocal(fila.fecha_inicio));
     setEditFin(aInputDatetimeLocal(fila.fecha_fin));
+    setEditInicioOriginal(fila.fecha_inicio);
+    setEditFinOriginal(fila.fecha_fin);
     setEditDescripcion(fila.descripcion ?? "");
   }
 
   async function guardarEdicion(idRegistro: number) {
     setGuardandoEdicion(true);
     setError(null);
+    // El input datetime-local trunca los segundos. Si el usuario no toco
+    // un campo, se manda el valor original completo (con segundos) en vez
+    // de reconstruirlo con ":00" -- si no, un campo sin cambios podia
+    // "adelantarse" hasta 59s y chocar con el fin real de un registro
+    // anterior, disparando una superposicion falsa.
+    const fechaInicioFinal =
+      editInicio === aInputDatetimeLocal(editInicioOriginal) ? editInicioOriginal : aFechaMySQL(editInicio);
+    const fechaFinFinal = editFin === aInputDatetimeLocal(editFinOriginal) ? editFinOriginal : aFechaMySQL(editFin);
     const res = await fetch(`/api/registros-tiempo/${idRegistro}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        fechaInicio: aFechaMySQL(editInicio),
-        fechaFin: aFechaMySQL(editFin),
+        fechaInicio: fechaInicioFinal,
+        fechaFin: fechaFinFinal,
         descripcion: editDescripcion || null,
       }),
     });
