@@ -60,14 +60,20 @@ function aFechaISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function aFechaTexto(d: Date): string {
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+
 function primerDiaDelMes(d: Date): string {
   return aFechaISO(new Date(d.getFullYear(), d.getMonth(), 1));
 }
 
 function partirNombre(nombreCompleto: string): { nombres: string; apellidos: string } {
   const partes = nombreCompleto.trim().split(/\s+/).filter(Boolean);
-  if (partes.length <= 1) return { nombres: nombreCompleto.trim(), apellidos: nombreCompleto.trim() };
-  return { nombres: partes[0], apellidos: partes.slice(1).join(" ") };
+  if (partes.length <= 1) {
+    return { nombres: nombreCompleto.trim().slice(0, 100), apellidos: nombreCompleto.trim().slice(0, 100) };
+  }
+  return { nombres: partes[0].slice(0, 100), apellidos: partes.slice(1).join(" ").slice(0, 100) };
 }
 
 function slugEmail(valor: string): string {
@@ -133,18 +139,24 @@ export async function POST(req: NextRequest) {
   for (let fila = 2; fila <= sheet.rowCount; fila++) {
     const row = sheet.getRow(fila);
     const recurso = celdaTexto(row.getCell(colRecurso).value);
-    const proveedor = colProveedor ? celdaTexto(row.getCell(colProveedor).value) || null : null;
-    const ocOs = colOcOs ? celdaTexto(row.getCell(colOcOs).value) || null : null;
-    const iniciativa = colIniciativa ? celdaTexto(row.getCell(colIniciativa).value) || null : null;
-    const periodoTexto = celdaTexto(row.getCell(colPeriodo).value);
-    const lider = colLider ? celdaTexto(row.getCell(colLider).value) || null : null;
+    const proveedor = colProveedor ? celdaTexto(row.getCell(colProveedor).value).slice(0, 150) || null : null;
+    const ocOs = colOcOs ? celdaTexto(row.getCell(colOcOs).value).slice(0, 50) || null : null;
+    const iniciativa = colIniciativa ? celdaTexto(row.getCell(colIniciativa).value).slice(0, 255) || null : null;
+    const celdaPeriodo = row.getCell(colPeriodo).value;
+    const periodoFecha = celdaFecha(celdaPeriodo);
+    // Si la celda vino como fecha real de Excel, se formatea corto (DD/MM/YYYY)
+    // para guardar como referencia -- el toString() nativo de un Date es un
+    // texto largo tipo "Thu Jul 30 2026 19:00:00 GMT-0500 (...)" que no entra
+    // en la columna. Si no parseo como fecha, se usa el texto tal cual (solo
+    // para el mensaje de error, esa fila nunca llega a guardarse).
+    const periodoTexto = periodoFecha ? aFechaTexto(periodoFecha) : celdaTexto(celdaPeriodo).slice(0, 50);
+    const lider = colLider ? celdaTexto(row.getCell(colLider).value).slice(0, 150) || null : null;
 
     if (!recurso && !proveedor && !iniciativa) continue; // fila vacia, se omite en silencio
 
     try {
       if (!recurso) throw new Error("Falta el nombre de recurso asignado");
 
-      const periodoFecha = celdaFecha(row.getCell(colPeriodo).value);
       if (!periodoFecha) {
         throw new Error(`Periodo invalido: "${periodoTexto}" (se espera una fecha, ej. 31/07/2026)`);
       }
