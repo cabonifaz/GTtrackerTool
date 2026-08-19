@@ -172,6 +172,39 @@ export interface ReporteClasesPorGrupo {
   total_segundos: number;
 }
 
+export interface ProyectoAsignacion {
+  id_asignacion: number;
+  id_proyecto: number;
+  proyecto: string;
+  id_usuario: number;
+  recurso: string;
+  proveedor: string | null;
+  oc_os: string | null;
+  nombre_iniciativa: string | null;
+  periodo_desde: string;
+  periodo_hasta: string;
+  periodo_referencia: string | null;
+  lider_tecnico_asociado: string | null;
+  vigente: number;
+  actividades_cargadas: number;
+  activo: number;
+  fecha_creacion: string;
+}
+
+export interface ActividadProyecto {
+  id_actividad: number;
+  descripcion: string;
+  orden: number;
+  fecha_creacion: string;
+}
+
+export interface ImportarAsignacionResultado {
+  fila: number;
+  ok: boolean;
+  mensaje: string;
+  recurso: string;
+}
+
 export interface MiProyecto {
   id_proyecto: number;
   proyecto: string;

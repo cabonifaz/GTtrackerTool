@@ -43,7 +43,10 @@ export default async function AppLayout({
   // Los links de tipos de proyecto opcionales (Clases, Actividades) solo
   // se muestran si la empresa realmente tiene un proyecto de ese tipo --
   // no le agregan ruido a una empresa que solo usa el cronometro normal.
-  const tieneClases = await tieneProyectoDeTipo("CLASES", session.user.idEmpresa!);
+  const [tieneClases, tieneActividades] = await Promise.all([
+    tieneProyectoDeTipo("CLASES", session.user.idEmpresa!),
+    tieneProyectoDeTipo("ACTIVIDADES_EXCEL", session.user.idEmpresa!),
+  ]);
 
   return (
     <div className="min-h-screen">
@@ -55,6 +58,7 @@ export default async function AppLayout({
         empresaNombre={empresa.nombre}
         tieneLogo={!!empresa.tiene_logo}
         tieneClases={tieneClases.length > 0}
+        tieneActividades={tieneActividades.length > 0}
       />
       <main className="max-w-5xl mx-auto px-4 py-6">{children}</main>
     </div>
