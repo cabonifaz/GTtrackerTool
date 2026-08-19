@@ -5,6 +5,27 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* --color-primario / --color-secundario: definidos por tenant en
+     app/[empresa]/(app)/layout.tsx a partir de empresas.color_primario/
+     color_secundario. No se tocan/redefinen aca -- lo de abajo son tokens
+     nuevos que se suman, nunca reemplazan ese mecanismo por tenant. */
+
+  --success-600: #16a34a;
+  --success-100: #dcfce7;
+  --success-ink: #166534;
+  --warning-600: #d97706;
+  --warning-100: #fef3c7;
+  --warning-ink: #92400e;
+  --danger-600: #dc2626;
+  --danger-100: #fee2e2;
+  --danger-ink: #991b1b;
+  --info-600: #0891b2;
+  --info-100: #cffafe;
+  --info-ink: #155e75;
+
+  --radius-lg: 16px;
+  --shadow-1: 0 1px 2px rgba(17, 24, 39, 0.06), 0 1px 3px rgba(17, 24, 39, 0.08);
 }
 
 @media (prefers-color-scheme: dark) {

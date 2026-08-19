@@ -57,7 +57,10 @@ export default function LoginForm({
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4">
+    <div
+      className="min-h-screen flex flex-col items-center justify-center px-4"
+      style={{ "--color-primario": colorPrimario } as React.CSSProperties}
+    >
       <form
         onSubmit={handleSubmit}
         className="w-full max-w-sm bg-white rounded-xl shadow-sm border border-gray-200 p-8 space-y-5"
@@ -95,7 +98,7 @@ export default function LoginForm({
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primario)]"
           />
         </div>
 
@@ -109,7 +112,7 @@ export default function LoginForm({
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primario)]"
           />
         </div>
 

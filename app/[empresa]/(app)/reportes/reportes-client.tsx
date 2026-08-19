@@ -294,7 +294,9 @@ export default function ReportesClient({
         <button
           onClick={() => cambiarVista("detalle")}
           className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-            vista === "detalle" ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500"
+            vista === "detalle"
+              ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+              : "border-transparent text-gray-500"
           }`}
         >
           Detalle
@@ -302,7 +304,9 @@ export default function ReportesClient({
         <button
           onClick={() => cambiarVista("por-tarea")}
           className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-            vista === "por-tarea" ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500"
+            vista === "por-tarea"
+              ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+              : "border-transparent text-gray-500"
           }`}
         >
           Por tarea
@@ -311,7 +315,9 @@ export default function ReportesClient({
           <button
             onClick={() => setVista("costos")}
             className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-              vista === "costos" ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500"
+              vista === "costos"
+                ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+                : "border-transparent text-gray-500"
             }`}
           >
             Costos
@@ -321,7 +327,9 @@ export default function ReportesClient({
           <button
             onClick={() => setVista("resumen")}
             className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-              vista === "resumen" ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500"
+              vista === "resumen"
+                ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+                : "border-transparent text-gray-500"
             }`}
           >
             Resumen
@@ -331,7 +339,9 @@ export default function ReportesClient({
           <button
             onClick={() => setVista("proyeccion")}
             className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-              vista === "proyeccion" ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500"
+              vista === "proyeccion"
+                ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+                : "border-transparent text-gray-500"
             }`}
           >
             Proyeccion
@@ -363,7 +373,7 @@ export default function ReportesClient({
           <button
             onClick={() => buscar()}
             disabled={cargando}
-            className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
           >
             {cargando && <Spinner />}
             Buscar
@@ -388,7 +398,7 @@ export default function ReportesClient({
                   onClick={() => alternarUsuario(u.id_usuario)}
                   className={`rounded-full px-3 py-1 text-xs border ${
                     idsSeleccionados.includes(u.id_usuario)
-                      ? "bg-gray-900 text-white border-gray-900"
+                      ? "bg-[var(--color-primario)] text-white border-[var(--color-primario)]"
                       : "border-gray-300 text-gray-600"
                   }`}
                 >
@@ -555,7 +565,7 @@ export default function ReportesClient({
             <button
               onClick={buscarCostos}
               disabled={cargandoCostos || !costoIdProyecto}
-              className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
             >
               {cargandoCostos && <Spinner />}
               Generar reporte
@@ -672,7 +682,7 @@ export default function ReportesClient({
             <button
               onClick={buscarResumen}
               disabled={cargandoResumen || !resumenIdProyecto}
-              className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
             >
               {cargandoResumen && <Spinner />}
               Generar resumen
@@ -808,7 +818,7 @@ export default function ReportesClient({
             <button
               onClick={buscarProyeccion}
               disabled={cargandoProyeccion || !proyeccionIdCliente}
-              className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
             >
               {cargandoProyeccion && <Spinner />}
               Generar proyeccion

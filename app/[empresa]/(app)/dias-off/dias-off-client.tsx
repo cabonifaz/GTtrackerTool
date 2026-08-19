@@ -246,7 +246,7 @@ export default function DiasOffClient({
             </div>
             <button
               disabled={enviandoSolicitud}
-              className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50 sm:col-span-2 sm:w-fit"
+              className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50 sm:col-span-2 sm:w-fit"
             >
               {enviandoSolicitud && <Spinner />}
               Enviar solicitud
@@ -311,7 +311,9 @@ export default function DiasOffClient({
             <button
               onClick={() => setTabAdmin("solicitudes")}
               className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-                tabAdmin === "solicitudes" ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500"
+                tabAdmin === "solicitudes"
+                  ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+                  : "border-transparent text-gray-500"
               }`}
             >
               Solicitudes
@@ -319,7 +321,9 @@ export default function DiasOffClient({
             <button
               onClick={() => setTabAdmin("saldos")}
               className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-                tabAdmin === "saldos" ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500"
+                tabAdmin === "saldos"
+                  ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+                  : "border-transparent text-gray-500"
               }`}
             >
               Saldos de vacaciones
@@ -361,7 +365,7 @@ export default function DiasOffClient({
                 <button
                   onClick={buscarAusenciasAdmin}
                   disabled={cargandoAusencias}
-                  className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
                 >
                   {cargandoAusencias && <Spinner />}
                   Buscar
@@ -489,7 +493,7 @@ export default function DiasOffClient({
                 <button
                   onClick={buscarSaldoAdmin}
                   disabled={cargandoSaldoAdmin || !saldoTalentoId}
-                  className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
                 >
                   {cargandoSaldoAdmin && <Spinner />}
                   Ver saldo
@@ -518,7 +522,7 @@ export default function DiasOffClient({
                     <button
                       onClick={guardarSaldo}
                       disabled={guardandoSaldo}
-                      className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+                      className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
                     >
                       {guardandoSaldo && <Spinner />}
                       Guardar

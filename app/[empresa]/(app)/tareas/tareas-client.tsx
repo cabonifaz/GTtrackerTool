@@ -12,6 +12,7 @@ import {
   UsuarioAsignado,
 } from "@/lib/types";
 import { CargandoInline, Spinner } from "@/components/Spinner";
+import Badge from "@/components/Badge";
 import { fetchJson } from "@/lib/fetchJson";
 
 type Tab = "clientes" | "proyectos" | "tareas" | "perfiles";
@@ -486,12 +487,14 @@ export default function TareasClient({
               <span className="text-xs text-gray-400 font-mono tabular-nums">
                 {formatearHorasMin(Number(t.total_segundos))} · {(Number(t.total_segundos) / 3600).toFixed(2)} h
               </span>
-              <span className="text-gray-500">{t.estado}</span>
+              <Badge tono={t.codigo_estado === "FINALIZADA" ? "success" : t.codigo_estado === "EN_PROGRESO" ? "warning" : "neutral"}>
+                {t.estado}
+              </Badge>
               {t.codigo_estado !== "FINALIZADA" && (
                 <button
                   onClick={() => finalizarTareaAccion(t.id_tarea)}
                   disabled={finalizandoTarea === t.id_tarea}
-                  className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-900 underline disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 text-gray-500 hover:text-[var(--color-primario)] underline disabled:opacity-50"
                 >
                   {finalizandoTarea === t.id_tarea && <Spinner className="h-3 w-3" />}
                   Finalizar
@@ -532,7 +535,9 @@ export default function TareasClient({
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-              tab === t.id ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500"
+              tab === t.id
+                ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+                : "border-transparent text-gray-500"
             }`}
           >
             {t.label}
@@ -558,7 +563,7 @@ export default function TareasClient({
                   />
                   <button
                     disabled={enviando}
-                    className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
                   >
                     {enviando && <Spinner />}
                     Agregar
@@ -608,7 +613,7 @@ export default function TareasClient({
                   />
                   <button
                     disabled={enviando}
-                    className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50 sm:col-span-3 sm:w-fit"
+                    className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50 sm:col-span-3 sm:w-fit"
                   >
                     {enviando && <Spinner />}
                     Agregar
@@ -657,7 +662,7 @@ export default function TareasClient({
                                     disabled={procesando}
                                     className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs border disabled:opacity-50 ${
                                       asignado
-                                        ? "bg-gray-900 text-white border-gray-900"
+                                        ? "bg-[var(--color-primario)] text-white border-[var(--color-primario)]"
                                         : "border-gray-300 text-gray-600"
                                     }`}
                                   >
@@ -770,7 +775,7 @@ export default function TareasClient({
                 />
                 <button
                   disabled={enviando}
-                  className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50 sm:col-span-3 sm:w-fit"
+                  className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50 sm:col-span-3 sm:w-fit"
                 >
                   {enviando && <Spinner />}
                   Agregar
@@ -796,7 +801,7 @@ export default function TareasClient({
                     <button
                       onClick={buscarTareasPorTalentos}
                       disabled={buscandoTareasFiltradas || talentosFiltro.size === 0}
-                      className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+                      className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
                     >
                       {buscandoTareasFiltradas && <Spinner />}
                       Buscar
@@ -871,7 +876,7 @@ export default function TareasClient({
                   </select>
                   <button
                     disabled={enviandoPerfil}
-                    className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
                   >
                     {enviandoPerfil && <Spinner />}
                     Agregar perfil
@@ -981,7 +986,7 @@ export default function TareasClient({
                           <button
                             onClick={() => guardarTarifaPerfil(pf.id_perfil)}
                             disabled={guardandoTarifaPerfil}
-                            className="inline-flex items-center gap-1 text-gray-900 underline disabled:opacity-50"
+                            className="inline-flex items-center gap-1 text-[var(--color-primario)] underline disabled:opacity-50"
                           >
                             {guardandoTarifaPerfil && <Spinner className="h-3 w-3" />}
                             Guardar

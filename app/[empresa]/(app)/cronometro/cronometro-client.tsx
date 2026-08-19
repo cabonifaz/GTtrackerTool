@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Feriado, Proyecto, RegistroActivo, Tarea, UltimaTarea } from "@/lib/types";
 import { CargandoInline, Spinner } from "@/components/Spinner";
 import AdSlot from "@/components/AdSlot";
+import Badge from "@/components/Badge";
 import { CronometroLocal, guardarEstadoLocal } from "@/lib/offline/db";
 import { iniciarLocal, obtenerEstadoLocalActivo, pausarLocal, useSyncStatus } from "@/lib/offline/sync";
 
@@ -205,7 +206,10 @@ export default function CronometroClient({
       {corriendo ? (
         <div className="rounded-lg border border-gray-200 bg-white p-6 space-y-4">
           <div>
-            <p className="text-sm text-gray-500">Tarea en curso</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-gray-500">Tarea en curso</p>
+              <Badge tono="warning">En curso</Badge>
+            </div>
             <p className="font-medium">{activoLocal.tareaLabel}</p>
             <p className="text-sm text-gray-500">{activoLocal.proyectoLabel}</p>
             {activoLocal.descripcion && <p className="text-sm text-gray-500">{activoLocal.descripcion}</p>}
@@ -214,7 +218,7 @@ export default function CronometroClient({
           <button
             onClick={pausar}
             disabled={cargando}
-            className="inline-flex items-center gap-2 rounded-md bg-amber-600 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-full bg-[var(--warning-600)] text-white text-sm font-medium px-5 py-3 disabled:opacity-50"
           >
             {cargando && <Spinner />}
             Pausar
@@ -226,7 +230,7 @@ export default function CronometroClient({
             <button
               onClick={reanudarUltima}
               disabled={cargando}
-              className="w-full flex items-center justify-between rounded-lg border border-gray-900 bg-gray-900 text-white px-5 py-4 disabled:opacity-50"
+              className="w-full flex items-center justify-between rounded-lg border border-[var(--color-primario)] bg-[var(--color-primario)] text-white px-5 py-4 disabled:opacity-50"
             >
               <span className="text-left">
                 <span className="block text-xs uppercase tracking-wide text-gray-300">
@@ -249,7 +253,9 @@ export default function CronometroClient({
               <button
                 onClick={() => setModoTarea("existente")}
                 className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-                  modoTarea === "existente" ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500"
+                  modoTarea === "existente"
+                    ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+                    : "border-transparent text-gray-500"
                 }`}
               >
                 Tarea existente
@@ -257,7 +263,9 @@ export default function CronometroClient({
               <button
                 onClick={() => setModoTarea("nueva")}
                 className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-                  modoTarea === "nueva" ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500"
+                  modoTarea === "nueva"
+                    ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+                    : "border-transparent text-gray-500"
                 }`}
               >
                 Tarea nueva
@@ -335,7 +343,7 @@ export default function CronometroClient({
                 !idProyecto ||
                 (modoTarea === "existente" ? !idTarea : !nombreTareaNueva.trim())
               }
-              className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
             >
               {cargando && <Spinner />}
               Iniciar

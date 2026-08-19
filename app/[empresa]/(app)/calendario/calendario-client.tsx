@@ -231,7 +231,7 @@ export default function CalendarioClient({
                     disabled={cambiandoDefault || p.predeterminado === 1}
                     className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs border disabled:cursor-default ${
                       p.predeterminado === 1
-                        ? "bg-gray-900 text-white border-gray-900"
+                        ? "bg-[var(--color-primario)] text-white border-[var(--color-primario)]"
                         : "border-gray-300 text-gray-600"
                     }`}
                   >
@@ -344,7 +344,7 @@ export default function CalendarioClient({
             <button
               onClick={importarAnio}
               disabled={importando || !importPais || !importAnio}
-              className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50 sm:col-span-2"
+              className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50 sm:col-span-2"
             >
               {importando && <Spinner />}
               Importar desde internet
@@ -405,7 +405,7 @@ export default function CalendarioClient({
           <button
             onClick={crearFeriado}
             disabled={creandoFeriado || !formPais || !formFecha || !formNombre.trim()}
-            className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
           >
             {creandoFeriado && <Spinner />}
             Agregar feriado

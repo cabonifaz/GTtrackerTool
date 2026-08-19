@@ -237,7 +237,7 @@ export default function UsuariosClient({
           </select>
           <button
             disabled={enviandoUsuario}
-            className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50 sm:col-span-5 sm:w-fit"
+            className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50 sm:col-span-5 sm:w-fit"
           >
             {enviandoUsuario && <Spinner />}
             Crear usuario
@@ -309,7 +309,7 @@ export default function UsuariosClient({
                   </select>
                   <button
                     disabled={idsProcesando.has(`editar-${u.id_usuario}`)}
-                    className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-3 py-1.5 disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-3 py-1.5 disabled:opacity-50"
                   >
                     {idsProcesando.has(`editar-${u.id_usuario}`) && <Spinner />}
                     Guardar
@@ -404,7 +404,7 @@ export default function UsuariosClient({
           />
           <button
             disabled={enviandoSistema}
-            className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
           >
             {enviandoSistema && <Spinner />}
             Generar credenciales

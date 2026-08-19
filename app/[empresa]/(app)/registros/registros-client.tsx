@@ -260,7 +260,9 @@ export default function RegistrosClient({
             key={t.id}
             onClick={() => setVista(t.id)}
             className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-              vista === t.id ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500"
+              vista === t.id
+                ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+                : "border-transparent text-gray-500"
             }`}
           >
             {t.label}
@@ -275,7 +277,9 @@ export default function RegistrosClient({
           <button
             onClick={() => setModoTarea("existente")}
             className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-              modoTarea === "existente" ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500"
+              modoTarea === "existente"
+                ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+                : "border-transparent text-gray-500"
             }`}
           >
             Tarea existente
@@ -283,7 +287,9 @@ export default function RegistrosClient({
           <button
             onClick={() => setModoTarea("nueva")}
             className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-              modoTarea === "nueva" ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500"
+              modoTarea === "nueva"
+                ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+                : "border-transparent text-gray-500"
             }`}
           >
             Tarea nueva
@@ -335,6 +341,7 @@ export default function RegistrosClient({
             <label className="text-xs text-gray-500">Inicio</label>
             <input
               type="datetime-local"
+              step="1"
               value={fechaInicioNuevo}
               onChange={(e) => setFechaInicioNuevo(e.target.value)}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
@@ -344,6 +351,7 @@ export default function RegistrosClient({
             <label className="text-xs text-gray-500">Fin</label>
             <input
               type="datetime-local"
+              step="1"
               value={fechaFinNuevo}
               onChange={(e) => setFechaFinNuevo(e.target.value)}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
@@ -367,7 +375,7 @@ export default function RegistrosClient({
             !fechaInicioNuevo ||
             !fechaFinNuevo
           }
-          className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
         >
           {enviando && <Spinner />}
           Agregar registro
@@ -466,7 +474,7 @@ export default function RegistrosClient({
           <button
             onClick={buscar}
             disabled={cargandoLista}
-            className="inline-flex items-center gap-2 rounded-md bg-gray-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
           >
             {cargandoLista && <Spinner />}
             Buscar
@@ -499,17 +507,19 @@ export default function RegistrosClient({
                     <td className="px-4 py-2">
                       <input
                         type="datetime-local"
+                        step="1"
                         value={editInicio}
                         onChange={(e) => setEditInicio(e.target.value)}
-                        className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+                        className="rounded-md border border-[var(--color-primario)] px-2 py-1 text-xs"
                       />
                     </td>
                     <td className="px-4 py-2">
                       <input
                         type="datetime-local"
+                        step="1"
                         value={editFin}
                         onChange={(e) => setEditFin(e.target.value)}
-                        className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+                        className="rounded-md border border-[var(--color-primario)] px-2 py-1 text-xs"
                       />
                     </td>
                     <td className="px-4 py-2 text-right">-</td>
@@ -524,7 +534,7 @@ export default function RegistrosClient({
                       <button
                         onClick={() => guardarEdicion(f.id_registro)}
                         disabled={guardandoEdicion}
-                        className="inline-flex items-center gap-1 text-gray-900 underline mr-2 disabled:opacity-50"
+                        className="inline-flex items-center gap-1 text-[var(--color-primario)] underline mr-2 disabled:opacity-50"
                       >
                         {guardandoEdicion && <Spinner className="h-3 w-3" />}
                         Guardar
@@ -538,9 +548,9 @@ export default function RegistrosClient({
                   <tr key={f.id_registro}>
                     <td className="px-4 py-2 text-gray-500">{f.proyecto}</td>
                     <td className="px-4 py-2">{f.tarea}</td>
-                    <td className="px-4 py-2 text-gray-500">{f.fecha_inicio}</td>
-                    <td className="px-4 py-2 text-gray-500">{f.fecha_fin}</td>
-                    <td className="px-4 py-2 text-right">{f.horas}</td>
+                    <td className="px-4 py-2 text-gray-500 font-mono tabular-nums text-xs">{f.fecha_inicio}</td>
+                    <td className="px-4 py-2 text-gray-500 font-mono tabular-nums text-xs">{f.fecha_fin}</td>
+                    <td className="px-4 py-2 text-right font-mono tabular-nums">{f.horas}</td>
                     <td className="px-4 py-2 text-gray-500">{f.descripcion ?? "-"}</td>
                     <td className="px-4 py-2 whitespace-nowrap">
                       <button
