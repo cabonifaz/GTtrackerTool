@@ -1,16 +1,30 @@
 "use client";
 
 import { useEffect, useMemo, useState, FormEvent } from "react";
-import { ActividadProyecto, ImportarAsignacionResultado, Proyecto, ProyectoAsignacion } from "@/lib/types";
+import {
+  ActividadProyecto,
+  CodigoEstadoAsignacionActividad,
+  ImportarAsignacionResultado,
+  Proyecto,
+  ProyectoAsignacion,
+} from "@/lib/types";
 import { CargandoInline, Spinner } from "@/components/Spinner";
 import Badge from "@/components/Badge";
 import { fetchJson } from "@/lib/fetchJson";
 
-function badgeEstado(a: ProyectoAsignacion) {
-  if (a.activo === 0) return { tono: "danger" as const, label: "Acceso revocado" };
-  if (a.codigo_estado === "ENVIADO") return { tono: "success" as const, label: "Enviado" };
-  if (a.codigo_estado === "CERRADO") return { tono: "neutral" as const, label: "Cerrado" };
-  return { tono: "warning" as const, label: "Pendiente" };
+const SEMAFORO: Record<"REVOCADO" | CodigoEstadoAsignacionActividad, { color: string; label: string; tono: "success" | "warning" | "danger" | "neutral" }> = {
+  PENDIENTE: { color: "bg-amber-500", label: "Pendiente", tono: "warning" },
+  ENVIADO: { color: "bg-green-500", label: "Enviado", tono: "success" },
+  CERRADO: { color: "bg-gray-400", label: "Cerrado", tono: "neutral" },
+  REVOCADO: { color: "bg-red-500", label: "Acceso revocado", tono: "danger" },
+};
+
+function estadoDe(a: ProyectoAsignacion) {
+  return a.activo === 0 ? SEMAFORO.REVOCADO : SEMAFORO[a.codigo_estado];
+}
+
+function claveGrupoPeriodo(a: ProyectoAsignacion) {
+  return `${a.id_proyecto}|${a.periodo_desde}|${a.periodo_hasta}`;
 }
 
 export default function ActividadesClient({
@@ -29,9 +43,19 @@ export default function ActividadesClient({
   const [expandidaId, setExpandidaId] = useState<number | null>(null);
   const [procesandoId, setProcesandoId] = useState<number | null>(null);
   const [procesandoPeriodo, setProcesandoPeriodo] = useState<string | null>(null);
+  const [procesandoMasivo, setProcesandoMasivo] = useState(false);
+
+  // Filtros (solo Admin)
+  const [filtroProyecto, setFiltroProyecto] = useState("");
+  const [filtroPeriodo, setFiltroPeriodo] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState<"" | "REVOCADO" | CodigoEstadoAsignacionActividad>("");
+  const [busqueda, setBusqueda] = useState("");
+  const [mostrarRevocados, setMostrarRevocados] = useState(false);
+  const [seleccionados, setSeleccionados] = useState<Set<number>>(new Set());
 
   async function recargarAsignaciones() {
     setAsignaciones(await fetchJson<ProyectoAsignacion[]>("/api/actividades/asignaciones"));
+    setSeleccionados(new Set());
   }
 
   async function quitarAcceso(idAsignacion: number) {
@@ -112,18 +136,69 @@ export default function ActividadesClient({
     setProcesandoPeriodo(null);
   }
 
-  const pendientes = useMemo(
-    () => asignaciones.filter((a) => a.activo === 1 && a.codigo_estado === "PENDIENTE"),
-    [asignaciones]
-  );
+  // Acciones masivas sobre la seleccion actual -- reutilizan los mismos
+  // endpoints de a uno, en paralelo, en vez de sumar SPs nuevas.
+  async function accionMasiva(endpoint: (id: number) => string, metodo: string) {
+    setProcesandoMasivo(true);
+    setError(null);
+    try {
+      const resultados = await Promise.allSettled(
+        Array.from(seleccionados).map((id) => fetch(endpoint(id), { method: metodo }))
+      );
+      const fallos = resultados.filter((r) => r.status === "rejected").length;
+      if (fallos > 0) setError(`${fallos} de ${seleccionados.size} no se pudieron procesar`);
+      await recargarAsignaciones();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo completar la accion masiva");
+    }
+    setProcesandoMasivo(false);
+  }
+
+  function alternarSeleccion(id: number) {
+    setSeleccionados((prev) => {
+      const nuevo = new Set(prev);
+      if (nuevo.has(id)) nuevo.delete(id);
+      else nuevo.add(id);
+      return nuevo;
+    });
+  }
+
+  const resumen = useMemo(() => {
+    const totales = { PENDIENTE: 0, ENVIADO: 0, CERRADO: 0, REVOCADO: 0 };
+    for (const a of asignaciones) {
+      if (a.activo === 0) totales.REVOCADO++;
+      else totales[a.codigo_estado]++;
+    }
+    return totales;
+  }, [asignaciones]);
+
+  const periodosDisponibles = useMemo(() => {
+    const set = new Set(asignaciones.map((a) => `${a.periodo_desde.slice(0, 10)}|${a.periodo_hasta.slice(0, 10)}`));
+    return Array.from(set).sort().reverse();
+  }, [asignaciones]);
+
+  const asignacionesFiltradas = useMemo(() => {
+    const busq = busqueda.trim().toLowerCase();
+    return asignaciones.filter((a) => {
+      if (!mostrarRevocados && a.activo === 0 && filtroEstado !== "REVOCADO") return false;
+      if (filtroProyecto && String(a.id_proyecto) !== filtroProyecto) return false;
+      if (filtroPeriodo && `${a.periodo_desde.slice(0, 10)}|${a.periodo_hasta.slice(0, 10)}` !== filtroPeriodo) return false;
+      if (filtroEstado) {
+        const estActual = a.activo === 0 ? "REVOCADO" : a.codigo_estado;
+        if (estActual !== filtroEstado) return false;
+      }
+      if (busq && !a.recurso.toLowerCase().includes(busq)) return false;
+      return true;
+    });
+  }, [asignaciones, filtroProyecto, filtroPeriodo, filtroEstado, busqueda, mostrarRevocados]);
 
   const gruposPeriodo = useMemo(() => {
     const mapa = new Map<
       string,
       { idProyecto: number; proyecto: string; periodoDesde: string; periodoHasta: string; items: ProyectoAsignacion[] }
     >();
-    for (const a of asignaciones) {
-      const clave = `${a.id_proyecto}|${a.periodo_desde}|${a.periodo_hasta}`;
+    for (const a of asignacionesFiltradas) {
+      const clave = claveGrupoPeriodo(a);
       if (!mapa.has(clave)) {
         mapa.set(clave, {
           idProyecto: a.id_proyecto,
@@ -136,23 +211,31 @@ export default function ActividadesClient({
       mapa.get(clave)!.items.push(a);
     }
     return Array.from(mapa.entries()).map(([clave, grupo]) => ({ clave, ...grupo }));
-  }, [asignaciones]);
+  }, [asignacionesFiltradas]);
 
   function renderFila(a: ProyectoAsignacion) {
-    const badge = badgeEstado(a);
+    const est = estadoDe(a);
+    const puedeEliminarSinRastro = a.activo === 1 && a.actividades_cargadas === 0;
     return (
       <li key={a.id_asignacion} className="text-sm">
         <div className="px-4 py-3 flex flex-wrap justify-between items-center gap-2">
-          <span>
+          <span className="flex items-center gap-2">
+            {esAdmin && (
+              <input
+                type="checkbox"
+                checked={seleccionados.has(a.id_asignacion)}
+                onChange={() => alternarSeleccion(a.id_asignacion)}
+                className="rounded border-gray-300"
+              />
+            )}
+            <span className={`inline-block h-2 w-2 rounded-full ${est.color}`} title={est.label} />
             {esAdmin && <span className="font-medium">{a.recurso}</span>}
             {esAdmin && <span className="text-gray-400"> · </span>}
             <span>{a.proveedor ?? "-"}</span>
             {a.oc_os && <span className="text-gray-400"> · {a.oc_os}</span>}
             {a.nombre_iniciativa && <span className="text-gray-500"> · {a.nombre_iniciativa}</span>}
-            <span className="ml-2">
-              <Badge tono={badge.tono}>{badge.label}</Badge>
-            </span>
-            <span className="ml-1 text-xs text-gray-400 font-mono tabular-nums">{a.actividades_cargadas}/5</span>
+            <Badge tono={est.tono}>{est.label}</Badge>
+            <span className="text-xs text-gray-400 font-mono tabular-nums">{a.actividades_cargadas}/5</span>
           </span>
           <span className="flex items-center gap-3">
             <span className="text-xs text-gray-400 font-mono tabular-nums">
@@ -186,7 +269,7 @@ export default function ActividadesClient({
             )}
             {esAdmin && a.activo === 1 && (
               <button onClick={() => quitarAcceso(a.id_asignacion)} className="text-gray-500 hover:text-red-600 underline">
-                Quitar acceso
+                {puedeEliminarSinRastro ? "Eliminar" : "Quitar acceso"}
               </button>
             )}
             {esAdmin && a.activo === 0 && (
@@ -229,19 +312,132 @@ export default function ActividadesClient({
         <CargaMasiva proyectos={proyectosActividadesIniciales} onCargaCompleta={recargarAsignaciones} setError={setError} />
       )}
 
-      {esAdmin && pendientes.length > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-1">
-          <p className="text-sm font-medium text-amber-800">
-            {pendientes.length} {pendientes.length === 1 ? "talento tiene" : "talentos tienen"} su reporte pendiente
-            de enviar
-          </p>
-          <ul className="text-sm text-amber-700 space-y-0.5">
-            {pendientes.map((p) => (
-              <li key={p.id_asignacion}>
-                {p.recurso} — {p.proyecto} ({p.periodo_desde.slice(0, 10)} → {p.periodo_hasta.slice(0, 10)})
-              </li>
-            ))}
-          </ul>
+      {esAdmin && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {(
+            [
+              ["PENDIENTE", resumen.PENDIENTE],
+              ["ENVIADO", resumen.ENVIADO],
+              ["CERRADO", resumen.CERRADO],
+              ["REVOCADO", resumen.REVOCADO],
+            ] as const
+          ).map(([codigo, cantidad]) => (
+            <button
+              key={codigo}
+              onClick={() => setFiltroEstado(filtroEstado === codigo ? "" : codigo)}
+              className={`rounded-lg border p-3 text-left ${
+                filtroEstado === codigo ? "border-[var(--color-primario)] ring-1 ring-[var(--color-primario)]" : "border-gray-200"
+              } bg-white`}
+            >
+              <span className="flex items-center gap-1.5">
+                <span className={`inline-block h-2 w-2 rounded-full ${SEMAFORO[codigo].color}`} />
+                <span className="text-xs text-gray-500">{SEMAFORO[codigo].label}</span>
+              </span>
+              <span className="block text-xl font-semibold font-mono tabular-nums">{cantidad}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {esAdmin && (
+        <div className="rounded-lg border border-gray-200 bg-white p-4 flex flex-wrap items-end gap-2">
+          <div className="space-y-1">
+            <label className="text-xs text-gray-500">Proyecto</label>
+            <select
+              value={filtroProyecto}
+              onChange={(e) => setFiltroProyecto(e.target.value)}
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+            >
+              <option value="">Todos</option>
+              {proyectosActividadesIniciales.map((p) => (
+                <option key={p.id_proyecto} value={p.id_proyecto}>
+                  {p.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-gray-500">Periodo</label>
+            <select
+              value={filtroPeriodo}
+              onChange={(e) => setFiltroPeriodo(e.target.value)}
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+            >
+              <option value="">Todos</option>
+              {periodosDisponibles.map((p) => {
+                const [desde, hasta] = p.split("|");
+                return (
+                  <option key={p} value={p}>
+                    {desde} → {hasta}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+          <div className="space-y-1 flex-1 min-w-[10rem]">
+            <label className="text-xs text-gray-500">Buscar talento</label>
+            <input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Nombre..."
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <label className="flex items-center gap-1.5 text-xs text-gray-500 pb-2">
+            <input type="checkbox" checked={mostrarRevocados} onChange={(e) => setMostrarRevocados(e.target.checked)} />
+            Mostrar revocados
+          </label>
+          {(filtroProyecto || filtroPeriodo || filtroEstado || busqueda) && (
+            <button
+              onClick={() => {
+                setFiltroProyecto("");
+                setFiltroPeriodo("");
+                setFiltroEstado("");
+                setBusqueda("");
+              }}
+              className="text-xs text-gray-500 underline pb-2"
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+      )}
+
+      {esAdmin && seleccionados.size > 0 && (
+        <div className="rounded-lg border border-[var(--color-primario)] bg-gray-50 p-3 flex flex-wrap items-center gap-3">
+          <span className="text-sm font-medium">{seleccionados.size} seleccionados</span>
+          <button
+            disabled={procesandoMasivo}
+            onClick={() => accionMasiva((id) => `/api/actividades/asignaciones/${id}/cerrar`, "POST")}
+            className="text-xs text-[var(--color-primario)] underline disabled:opacity-50"
+          >
+            Cerrar
+          </button>
+          <button
+            disabled={procesandoMasivo}
+            onClick={() => accionMasiva((id) => `/api/actividades/asignaciones/${id}/reabrir`, "POST")}
+            className="text-xs text-[var(--color-primario)] underline disabled:opacity-50"
+          >
+            Reabrir
+          </button>
+          <button
+            disabled={procesandoMasivo}
+            onClick={() => accionMasiva((id) => `/api/actividades/asignaciones/${id}/activar`, "POST")}
+            className="text-xs text-[var(--color-primario)] underline disabled:opacity-50"
+          >
+            Dar acceso
+          </button>
+          <button
+            disabled={procesandoMasivo}
+            onClick={() => accionMasiva((id) => `/api/actividades/asignaciones/${id}`, "DELETE")}
+            className="text-xs text-red-600 underline disabled:opacity-50"
+          >
+            Quitar acceso / Eliminar
+          </button>
+          {procesandoMasivo && <Spinner className="h-3 w-3" />}
+          <button onClick={() => setSeleccionados(new Set())} className="text-xs text-gray-500 underline ml-auto">
+            Deseleccionar todo
+          </button>
         </div>
       )}
 
@@ -250,12 +446,27 @@ export default function ActividadesClient({
           {gruposPeriodo.map((g) => {
             const todosCerrados = g.items.every((a) => a.codigo_estado === "CERRADO" || a.activo === 0);
             const hayCerrables = g.items.some((a) => a.activo === 1 && a.codigo_estado !== "CERRADO");
+            const idsGrupo = g.items.map((a) => a.id_asignacion);
+            const todoSeleccionado = idsGrupo.every((id) => seleccionados.has(id));
             return (
               <div key={g.clave} className="space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-medium text-gray-700">
+                  <p className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={todoSeleccionado}
+                      onChange={() =>
+                        setSeleccionados((prev) => {
+                          const nuevo = new Set(prev);
+                          if (todoSeleccionado) idsGrupo.forEach((id) => nuevo.delete(id));
+                          else idsGrupo.forEach((id) => nuevo.add(id));
+                          return nuevo;
+                        })
+                      }
+                      className="rounded border-gray-300"
+                    />
                     {g.proyecto} · {g.periodoDesde.slice(0, 10)} → {g.periodoHasta.slice(0, 10)}
-                    <span className="text-gray-400 font-normal"> ({g.items.length} talento{g.items.length === 1 ? "" : "s"})</span>
+                    <span className="text-gray-400 font-normal">({g.items.length} talento{g.items.length === 1 ? "" : "s"})</span>
                   </p>
                   {hayCerrables ? (
                     <button
@@ -286,7 +497,7 @@ export default function ActividadesClient({
           })}
           {gruposPeriodo.length === 0 && (
             <p className="px-4 py-6 text-sm text-center text-gray-400 rounded-lg border border-gray-200 bg-white">
-              Todavia no se cargo ninguna asignacion
+              {asignaciones.length === 0 ? "Todavia no se cargo ninguna asignacion" : "Ningun resultado con estos filtros"}
             </p>
           )}
         </div>
