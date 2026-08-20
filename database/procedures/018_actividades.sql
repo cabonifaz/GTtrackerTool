@@ -95,6 +95,30 @@ BEGIN
   UPDATE proyecto_asignaciones SET activo = 0, modificado_por = p_modificado_por WHERE id_asignacion = p_id_asignacion;
 END $$
 
+DROP PROCEDURE IF EXISTS sp_proyecto_asignacion_activar $$
+CREATE PROCEDURE sp_proyecto_asignacion_activar(
+  IN p_id_asignacion    INT UNSIGNED,
+  IN p_id_empresa_actor INT UNSIGNED,
+  IN p_modificado_por   VARCHAR(150)
+)
+BEGIN
+  -- Le devuelve el acceso a una asignacion puntual que se habia quitado
+  -- (activo=0), y la deja en Pendiente para que el talento pueda
+  -- registrar/modificar sus actividades de una vez.
+  IF NOT EXISTS (
+    SELECT 1 FROM proyecto_asignaciones a
+    JOIN proyectos p ON p.id_proyecto = a.id_proyecto
+    WHERE a.id_asignacion = p_id_asignacion AND p.id_empresa = p_id_empresa_actor
+  ) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Asignacion no encontrada';
+  END IF;
+
+  UPDATE proyecto_asignaciones a
+  JOIN maestro e ON e.tipo_maestro = 'ESTADO_ASIGNACION_ACTIVIDAD' AND e.codigo = 'PENDIENTE'
+  SET a.activo = 1, a.id_estado = e.id_maestro, a.modificado_por = p_modificado_por
+  WHERE a.id_asignacion = p_id_asignacion;
+END $$
+
 DROP PROCEDURE IF EXISTS sp_proyecto_asignacion_listar $$
 CREATE PROCEDURE sp_proyecto_asignacion_listar(
   IN p_id_proyecto       INT UNSIGNED,

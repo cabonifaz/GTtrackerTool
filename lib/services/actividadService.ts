@@ -33,6 +33,10 @@ export function desactivarAsignacion(idAsignacion: number, idEmpresaActor: numbe
   return executeProcedure("sp_proyecto_asignacion_desactivar", [idAsignacion, idEmpresaActor, modificadoPor]);
 }
 
+export function activarAsignacion(idAsignacion: number, idEmpresaActor: number, modificadoPor: string) {
+  return executeProcedure("sp_proyecto_asignacion_activar", [idAsignacion, idEmpresaActor, modificadoPor]);
+}
+
 export function listarAsignaciones(
   idProyecto: number | null,
   idUsuarioActor: number,

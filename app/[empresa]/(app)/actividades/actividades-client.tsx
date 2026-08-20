@@ -44,6 +44,18 @@ export default function ActividadesClient({
     }
   }
 
+  async function darAcceso(idAsignacion: number) {
+    setProcesandoId(idAsignacion);
+    setError(null);
+    try {
+      await fetchJson(`/api/actividades/asignaciones/${idAsignacion}/activar`, { method: "POST" });
+      await recargarAsignaciones();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo dar acceso");
+    }
+    setProcesandoId(null);
+  }
+
   async function cerrarUna(idAsignacion: number) {
     setProcesandoId(idAsignacion);
     setError(null);
@@ -175,6 +187,16 @@ export default function ActividadesClient({
             {esAdmin && a.activo === 1 && (
               <button onClick={() => quitarAcceso(a.id_asignacion)} className="text-gray-500 hover:text-red-600 underline">
                 Quitar acceso
+              </button>
+            )}
+            {esAdmin && a.activo === 0 && (
+              <button
+                onClick={() => darAcceso(a.id_asignacion)}
+                disabled={procesandoId === a.id_asignacion}
+                className="text-[var(--color-primario)] underline disabled:opacity-50"
+              >
+                {procesandoId === a.id_asignacion && <Spinner className="h-3 w-3 inline mr-1" />}
+                Dar acceso
               </button>
             )}
           </span>
