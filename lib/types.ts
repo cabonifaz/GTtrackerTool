@@ -172,6 +172,8 @@ export interface ReporteClasesPorGrupo {
   total_segundos: number;
 }
 
+export type CodigoEstadoAsignacionActividad = "PENDIENTE" | "ENVIADO" | "CERRADO";
+
 export interface ProyectoAsignacion {
   id_asignacion: number;
   id_proyecto: number;
@@ -185,6 +187,8 @@ export interface ProyectoAsignacion {
   periodo_hasta: string;
   periodo_referencia: string | null;
   lider_tecnico_asociado: string | null;
+  codigo_estado: CodigoEstadoAsignacionActividad;
+  estado: string;
   vigente: number;
   actividades_cargadas: number;
   activo: number;

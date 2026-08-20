@@ -112,3 +112,59 @@ export function listarActividades(
     idEmpresaActor,
   ]);
 }
+
+export function finalizarAsignacion(
+  idAsignacion: number,
+  idUsuarioActor: number,
+  codigoRolActor: CodigoRol,
+  idEmpresaActor: number,
+  modificadoPor: string
+) {
+  return executeProcedure("sp_asignacion_finalizar", [
+    idAsignacion,
+    idUsuarioActor,
+    codigoRolActor,
+    idEmpresaActor,
+    modificadoPor,
+  ]);
+}
+
+export function reabrirAsignacion(idAsignacion: number, idEmpresaActor: number, modificadoPor: string) {
+  return executeProcedure("sp_asignacion_reabrir", [idAsignacion, idEmpresaActor, modificadoPor]);
+}
+
+export function cerrarAsignacion(idAsignacion: number, idEmpresaActor: number, modificadoPor: string) {
+  return executeProcedure("sp_asignacion_cerrar", [idAsignacion, idEmpresaActor, modificadoPor]);
+}
+
+export function cerrarPeriodo(
+  idProyecto: number,
+  periodoDesde: string,
+  periodoHasta: string,
+  idEmpresaActor: number,
+  modificadoPor: string
+) {
+  return executeProcedure<{ asignaciones_cerradas: number }>("sp_periodo_cerrar", [
+    idProyecto,
+    periodoDesde,
+    periodoHasta,
+    idEmpresaActor,
+    modificadoPor,
+  ]);
+}
+
+export function reabrirPeriodo(
+  idProyecto: number,
+  periodoDesde: string,
+  periodoHasta: string,
+  idEmpresaActor: number,
+  modificadoPor: string
+) {
+  return executeProcedure<{ asignaciones_reabiertas: number }>("sp_periodo_reabrir", [
+    idProyecto,
+    periodoDesde,
+    periodoHasta,
+    idEmpresaActor,
+    modificadoPor,
+  ]);
+}
