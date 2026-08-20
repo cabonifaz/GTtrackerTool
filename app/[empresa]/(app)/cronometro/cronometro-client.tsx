@@ -5,6 +5,7 @@ import { Feriado, Proyecto, RegistroActivo, Tarea, UltimaTarea } from "@/lib/typ
 import { CargandoInline, Spinner } from "@/components/Spinner";
 import AdSlot from "@/components/AdSlot";
 import Badge from "@/components/Badge";
+import Card from "@/components/Card";
 import { CronometroLocal, guardarEstadoLocal } from "@/lib/offline/db";
 import { iniciarLocal, obtenerEstadoLocalActivo, pausarLocal, useSyncStatus } from "@/lib/offline/sync";
 
@@ -176,10 +177,10 @@ export default function CronometroClient({
   if (cargandoInicial) {
     return (
       <div className="max-w-xl">
-        <h1 className="text-lg font-semibold mb-6">Cronometro</h1>
-        <div className="rounded-lg border border-gray-200 bg-white">
+        <h1 className="text-h1 mb-6">Cronometro</h1>
+        <Card>
           <CargandoInline />
-        </div>
+        </Card>
       </div>
     );
   }
@@ -188,7 +189,7 @@ export default function CronometroClient({
 
   return (
     <div className="max-w-xl space-y-6">
-      <h1 className="text-lg font-semibold">Cronometro</h1>
+      <h1 className="text-h1">Cronometro</h1>
 
       {error && (
         <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
@@ -204,17 +205,17 @@ export default function CronometroClient({
       )}
 
       {corriendo ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-6 space-y-4">
+        <Card className="p-6 space-y-4">
           <div>
             <div className="flex items-center gap-2">
-              <p className="text-sm text-gray-500">Tarea en curso</p>
+              <p className="text-small text-gray-500">Tarea en curso</p>
               <Badge tono="warning">En curso</Badge>
             </div>
             <p className="font-medium">{activoLocal.tareaLabel}</p>
             <p className="text-sm text-gray-500">{activoLocal.proyectoLabel}</p>
             {activoLocal.descripcion && <p className="text-sm text-gray-500">{activoLocal.descripcion}</p>}
           </div>
-          <p className="text-4xl font-mono tabular-nums">{formatearDuracion(segundos)}</p>
+          <p className="text-4xl font-bold font-mono tabular-nums">{formatearDuracion(segundos)}</p>
           <button
             onClick={pausar}
             disabled={cargando}
@@ -223,7 +224,7 @@ export default function CronometroClient({
             {cargando && <Spinner />}
             Pausar
           </button>
-        </div>
+        </Card>
       ) : (
         <div className="space-y-4">
           {ultimaTarea && (
@@ -248,7 +249,7 @@ export default function CronometroClient({
             </button>
           )}
 
-          <div className="rounded-lg border border-gray-200 bg-white p-6 space-y-4">
+          <Card className="p-6 space-y-4">
             <div className="flex gap-1 border-b border-gray-200 -mt-2 mb-2">
               <button
                 onClick={() => setModoTarea("existente")}
@@ -348,7 +349,7 @@ export default function CronometroClient({
               {cargando && <Spinner />}
               Iniciar
             </button>
-          </div>
+          </Card>
         </div>
       )}
 
