@@ -101,7 +101,7 @@ BEGIN
          a.id_usuario, CONCAT(u.nombres, ' ', u.apellidos) AS recurso,
          a.proveedor, a.oc_os, a.nombre_iniciativa,
          a.periodo_desde, a.periodo_hasta, a.periodo_referencia, a.lider_tecnico_asociado,
-         (CURDATE() BETWEEN a.periodo_desde AND a.periodo_hasta AND a.activo = 1) AS vigente,
+         (a.activo = 1) AS vigente,
          (SELECT COUNT(*) FROM proyecto_actividades ac WHERE ac.id_asignacion = a.id_asignacion AND ac.activo = 1) AS actividades_cargadas,
          a.activo, a.fecha_creacion
   FROM proyecto_asignaciones a
@@ -129,7 +129,7 @@ BEGIN
   DECLARE v_cantidad INT;
   DECLARE v_siguiente_orden INT;
 
-  SELECT a.id_usuario, (CURDATE() BETWEEN a.periodo_desde AND a.periodo_hasta AND a.activo = 1)
+  SELECT a.id_usuario, a.activo
     INTO v_id_usuario_dueno, v_vigente
   FROM proyecto_asignaciones a
   JOIN proyectos p ON p.id_proyecto = a.id_proyecto
@@ -144,7 +144,7 @@ BEGIN
   END IF;
 
   IF NOT v_vigente THEN
-    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El periodo de esta asignacion ya no esta vigente';
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Esta asignacion ya no esta activa';
   END IF;
 
   IF p_descripcion IS NULL OR CHAR_LENGTH(TRIM(p_descripcion)) < 3 THEN
