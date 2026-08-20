@@ -12,11 +12,15 @@ import { CargandoInline, Spinner } from "@/components/Spinner";
 import Badge from "@/components/Badge";
 import { fetchJson } from "@/lib/fetchJson";
 
+// Colores del semaforo tomados de los tokens semanticos del design
+// system (app/globals.css), no de la escala de Tailwind directo -- para
+// que coincidan exactamente con los mismos tonos que ya usa Badge en el
+// resto de la app.
 const SEMAFORO: Record<"REVOCADO" | CodigoEstadoAsignacionActividad, { color: string; label: string; tono: "success" | "warning" | "danger" | "neutral" }> = {
-  PENDIENTE: { color: "bg-amber-500", label: "Pendiente", tono: "warning" },
-  ENVIADO: { color: "bg-green-500", label: "Enviado", tono: "success" },
+  PENDIENTE: { color: "bg-[var(--warning-600)]", label: "Pendiente", tono: "warning" },
+  ENVIADO: { color: "bg-[var(--success-600)]", label: "Enviado", tono: "success" },
   CERRADO: { color: "bg-gray-400", label: "Cerrado", tono: "neutral" },
-  REVOCADO: { color: "bg-red-500", label: "Acceso revocado", tono: "danger" },
+  REVOCADO: { color: "bg-[var(--danger-600)]", label: "Acceso revocado", tono: "danger" },
 };
 
 function estadoDe(a: ProyectoAsignacion) {
