@@ -28,6 +28,7 @@ CREATE PROCEDURE sp_empresa_crear(
   IN p_publicidad_activa  TINYINT(1),
   IN p_ocultar_nombre     TINYINT(1),
   IN p_ocultar_credito    TINYINT(1),
+  IN p_dominio_correo     VARCHAR(150),
   IN p_creado_por         VARCHAR(150)
 )
 BEGIN
@@ -78,12 +79,12 @@ BEGIN
   END IF;
 
   INSERT INTO empresas (
-    nombre, slug, color_primario, color_secundario,
+    nombre, slug, dominio_correo, color_primario, color_secundario,
     id_tipo_plan, limite_usuarios, tarifa_por_usuario, id_moneda, publicidad_activa, ocultar_nombre, ocultar_credito,
     creado_por
   )
   VALUES (
-    p_nombre, p_slug, COALESCE(p_color_primario, '#111827'), COALESCE(p_color_secundario, '#374151'),
+    p_nombre, p_slug, NULLIF(TRIM(p_dominio_correo), ''), COALESCE(p_color_primario, '#111827'), COALESCE(p_color_secundario, '#374151'),
     v_id_tipo_plan, v_limite_usuarios, v_tarifa_por_usuario, v_id_moneda, COALESCE(p_publicidad_activa, 0), COALESCE(p_ocultar_nombre, 0), COALESCE(p_ocultar_credito, 0),
     p_creado_por
   );
@@ -104,6 +105,7 @@ CREATE PROCEDURE sp_empresa_editar(
   IN p_publicidad_activa  TINYINT(1),
   IN p_ocultar_nombre     TINYINT(1),
   IN p_ocultar_credito    TINYINT(1),
+  IN p_dominio_correo     VARCHAR(150),
   IN p_modificado_por     VARCHAR(150)
 )
 BEGIN
@@ -153,6 +155,7 @@ BEGIN
       publicidad_activa = COALESCE(p_publicidad_activa, 0),
       ocultar_nombre = COALESCE(p_ocultar_nombre, 0),
       ocultar_credito = COALESCE(p_ocultar_credito, 0),
+      dominio_correo = NULLIF(TRIM(p_dominio_correo), ''),
       modificado_por = p_modificado_por
   WHERE id_empresa = p_id_empresa;
 END $$
@@ -217,7 +220,7 @@ END $$
 DROP PROCEDURE IF EXISTS sp_empresa_listar $$
 CREATE PROCEDURE sp_empresa_listar()
 BEGIN
-  SELECT e.id_empresa, e.nombre, e.slug, (e.logo IS NOT NULL) AS tiene_logo,
+  SELECT e.id_empresa, e.nombre, e.slug, e.dominio_correo, (e.logo IS NOT NULL) AS tiene_logo,
          e.color_primario, e.color_secundario, e.suspendida, e.activo, e.fecha_creacion,
          e.id_tipo_plan, tp.codigo AS codigo_tipo_plan, tp.valor AS tipo_plan,
          e.limite_usuarios, e.tarifa_por_usuario,
@@ -235,7 +238,7 @@ CREATE PROCEDURE sp_empresa_obtener_por_slug(
   IN p_slug VARCHAR(50)
 )
 BEGIN
-  SELECT e.id_empresa, e.nombre, e.slug, (e.logo IS NOT NULL) AS tiene_logo,
+  SELECT e.id_empresa, e.nombre, e.slug, e.dominio_correo, (e.logo IS NOT NULL) AS tiene_logo,
          e.color_primario, e.color_secundario, e.suspendida, e.activo,
          e.id_tipo_plan, tp.codigo AS codigo_tipo_plan, tp.valor AS tipo_plan,
          e.limite_usuarios, e.tarifa_por_usuario,

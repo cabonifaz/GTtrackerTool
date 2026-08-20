@@ -7,6 +7,7 @@ import {
   ImportarAsignacionResultado,
   Proyecto,
   ProyectoAsignacion,
+  Usuario,
 } from "@/lib/types";
 import { CargandoInline, Spinner } from "@/components/Spinner";
 import Badge from "@/components/Badge";
@@ -36,13 +37,19 @@ export default function ActividadesClient({
   idUsuario,
   proyectosActividadesIniciales,
   asignacionesIniciales,
+  talentosIniciales,
+  dominioCorreoSugerido,
 }: {
   esAdmin: boolean;
   idUsuario: number;
   proyectosActividadesIniciales: Proyecto[];
   asignacionesIniciales: ProyectoAsignacion[];
+  talentosIniciales: Usuario[];
+  dominioCorreoSugerido: string;
 }) {
   const [asignaciones, setAsignaciones] = useState(asignacionesIniciales);
+  const [mostrandoFormNueva, setMostrandoFormNueva] = useState(false);
+  const [editandoDatosId, setEditandoDatosId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandidaId, setExpandidaId] = useState<number | null>(null);
   const [procesandoId, setProcesandoId] = useState<number | null>(null);
@@ -271,6 +278,14 @@ export default function ActividadesClient({
                 Reabrir
               </button>
             )}
+            {esAdmin && (
+              <button
+                onClick={() => setEditandoDatosId(editandoDatosId === a.id_asignacion ? null : a.id_asignacion)}
+                className="text-gray-500 hover:text-[var(--color-primario)] underline"
+              >
+                {editandoDatosId === a.id_asignacion ? "Cancelar" : "Editar datos"}
+              </button>
+            )}
             {esAdmin && a.activo === 1 && (
               <button onClick={() => quitarAcceso(a.id_asignacion)} className="text-gray-500 hover:text-red-600 underline">
                 {puedeEliminarSinRastro ? "Eliminar" : "Quitar acceso"}
@@ -290,6 +305,23 @@ export default function ActividadesClient({
         </div>
         {a.lider_tecnico_asociado && (
           <p className="px-4 pb-2 text-xs text-gray-400">Lider tecnico: {a.lider_tecnico_asociado}</p>
+        )}
+        {editandoDatosId === a.id_asignacion && (
+          <div className="px-4 pb-4">
+            <FormularioAsignacion
+              modo="editar"
+              asignacionExistente={a}
+              proyectos={proyectosActividadesIniciales}
+              talentos={talentosIniciales}
+              dominioSugerido={dominioCorreoSugerido}
+              onGuardado={async () => {
+                setEditandoDatosId(null);
+                await recargarAsignaciones();
+              }}
+              onCancelar={() => setEditandoDatosId(null)}
+              setError={setError}
+            />
+          </div>
         )}
         {expandidaId === a.id_asignacion && (
           <ActividadesDeAsignacion
@@ -314,6 +346,32 @@ export default function ActividadesClient({
 
       {esAdmin && (
         <CargaMasiva proyectos={proyectosActividadesIniciales} onCargaCompleta={recargarAsignaciones} setError={setError} />
+      )}
+
+      {esAdmin && proyectosActividadesIniciales.length > 0 && (
+        <div>
+          {!mostrandoFormNueva ? (
+            <button
+              onClick={() => setMostrandoFormNueva(true)}
+              className="text-sm text-[var(--color-primario)] underline"
+            >
+              + Nueva asignacion manual
+            </button>
+          ) : (
+            <FormularioAsignacion
+              modo="crear"
+              proyectos={proyectosActividadesIniciales}
+              talentos={talentosIniciales}
+              dominioSugerido={dominioCorreoSugerido}
+              onGuardado={async () => {
+                setMostrandoFormNueva(false);
+                await recargarAsignaciones();
+              }}
+              onCancelar={() => setMostrandoFormNueva(false)}
+              setError={setError}
+            />
+          )}
+        </div>
       )}
 
       {esAdmin && (
@@ -612,6 +670,205 @@ function CargaMasiva({
         </div>
       )}
     </div>
+  );
+}
+
+function FormularioAsignacion({
+  modo,
+  asignacionExistente,
+  proyectos,
+  talentos,
+  dominioSugerido,
+  onGuardado,
+  onCancelar,
+  setError,
+}: {
+  modo: "crear" | "editar";
+  asignacionExistente?: ProyectoAsignacion;
+  proyectos: Proyecto[];
+  talentos: Usuario[];
+  dominioSugerido: string;
+  onGuardado: () => Promise<void>;
+  onCancelar: () => void;
+  setError: (msg: string | null) => void;
+}) {
+  const [tipoTalento, setTipoTalento] = useState<"existente" | "nuevo">("existente");
+  const [guardando, setGuardando] = useState(false);
+
+  async function guardar(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setGuardando(true);
+    setError(null);
+    const form = new FormData(e.currentTarget);
+    try {
+      const body: Record<string, unknown> = {
+        idProyecto: modo === "editar" ? asignacionExistente!.id_proyecto : Number(form.get("idProyecto")),
+        proveedor: form.get("proveedor"),
+        ocOs: form.get("ocOs"),
+        iniciativa: form.get("iniciativa"),
+        liderTecnico: form.get("liderTecnico"),
+        periodoReferencia: form.get("periodoReferencia"),
+      };
+
+      if (modo === "editar") {
+        body.idUsuario = asignacionExistente!.id_usuario;
+        body.periodoDesde = asignacionExistente!.periodo_desde.slice(0, 10);
+        body.periodoHasta = asignacionExistente!.periodo_hasta.slice(0, 10);
+      } else {
+        body.periodoDesde = form.get("periodoDesde");
+        body.periodoHasta = form.get("periodoHasta");
+        if (tipoTalento === "existente") {
+          body.idUsuario = Number(form.get("idUsuario"));
+        } else {
+          body.nombres = form.get("nombres");
+          body.apellidos = form.get("apellidos");
+          body.email = form.get("email");
+        }
+      }
+
+      const res = await fetch("/api/actividades/asignaciones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      await onGuardado();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo guardar la asignacion");
+    }
+    setGuardando(false);
+  }
+
+  return (
+    <form onSubmit={guardar} className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
+      {modo === "crear" ? (
+        <>
+          <select name="idProyecto" required className="rounded-md border border-gray-300 px-3 py-2 text-sm">
+            <option value="">Proyecto</option>
+            {proyectos.map((p) => (
+              <option key={p.id_proyecto} value={p.id_proyecto}>
+                {p.nombre}
+              </option>
+            ))}
+          </select>
+
+          <div className="flex gap-1 border-b border-gray-200">
+            <button
+              type="button"
+              onClick={() => setTipoTalento("existente")}
+              className={`px-3 py-1.5 text-sm font-medium border-b-2 -mb-px ${
+                tipoTalento === "existente"
+                  ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+                  : "border-transparent text-gray-500"
+              }`}
+            >
+              Talento existente
+            </button>
+            <button
+              type="button"
+              onClick={() => setTipoTalento("nuevo")}
+              className={`px-3 py-1.5 text-sm font-medium border-b-2 -mb-px ${
+                tipoTalento === "nuevo"
+                  ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+                  : "border-transparent text-gray-500"
+              }`}
+            >
+              Talento nuevo
+            </button>
+          </div>
+
+          {tipoTalento === "existente" ? (
+            <select name="idUsuario" required className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+              <option value="">Selecciona un talento</option>
+              {talentos.map((t) => (
+                <option key={t.id_usuario} value={t.id_usuario}>
+                  {t.nombres} {t.apellidos} · {t.email}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-3">
+              <input name="nombres" required placeholder="Nombres" className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
+              <input name="apellidos" required placeholder="Apellidos" className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
+              <input
+                name="email"
+                type="email"
+                placeholder={`ej. nombre.apellido@${dominioSugerido}`}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+              />
+              <p className="text-xs text-gray-400 sm:col-span-3">
+                Si dejas el correo vacio, se genera uno automatico con el dominio configurado para esta empresa
+                (@{dominioSugerido}). Se crea con clave generica -- avisale a la persona para que la cambie en su
+                primer ingreso.
+              </p>
+            </div>
+          )}
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="space-y-1">
+              <label className="text-xs text-gray-500">Periodo desde</label>
+              <input type="date" name="periodoDesde" required className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-gray-500">Periodo hasta</label>
+              <input type="date" name="periodoHasta" required className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
+            </div>
+          </div>
+        </>
+      ) : (
+        <p className="text-xs text-gray-500">
+          {asignacionExistente!.recurso} · {asignacionExistente!.periodo_desde.slice(0, 10)} →{" "}
+          {asignacionExistente!.periodo_hasta.slice(0, 10)}{" "}
+          <span className="text-gray-400">(el talento y el periodo no se pueden cambiar aca)</span>
+        </p>
+      )}
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <input
+          name="proveedor"
+          placeholder="Proveedor"
+          defaultValue={asignacionExistente?.proveedor ?? ""}
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+        />
+        <input
+          name="ocOs"
+          placeholder="N° OC/OS"
+          defaultValue={asignacionExistente?.oc_os ?? ""}
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+        />
+        <input
+          name="iniciativa"
+          placeholder="Numero y nombre de iniciativa"
+          defaultValue={asignacionExistente?.nombre_iniciativa ?? ""}
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm sm:col-span-2"
+        />
+        <input
+          name="liderTecnico"
+          placeholder="Lider tecnico asociado"
+          defaultValue={asignacionExistente?.lider_tecnico_asociado ?? ""}
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+        />
+        <input
+          name="periodoReferencia"
+          placeholder="Periodo (texto de referencia, ej. 31/07/2026)"
+          defaultValue={asignacionExistente?.periodo_referencia ?? ""}
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+        />
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          disabled={guardando}
+          className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+        >
+          {guardando && <Spinner />}
+          Guardar
+        </button>
+        <button type="button" onClick={onCancelar} className="text-sm text-gray-500 underline">
+          Cancelar
+        </button>
+      </div>
+    </form>
   );
 }
 

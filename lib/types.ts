@@ -6,6 +6,7 @@ export interface Empresa {
   id_empresa: number;
   nombre: string;
   slug: string;
+  dominio_correo: string | null;
   tiene_logo: number;
   color_primario: string;
   color_secundario: string;

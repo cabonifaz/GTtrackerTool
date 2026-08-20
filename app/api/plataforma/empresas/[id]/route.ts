@@ -17,6 +17,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     publicidadActiva,
     ocultarNombre,
     ocultarCredito,
+    dominioCorreo,
   } = await req.json();
 
   try {
@@ -34,6 +35,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       },
       !!ocultarNombre,
       !!ocultarCredito,
+      dominioCorreo || null,
       session.user.email ?? ""
     );
     return NextResponse.json({ ok: true });

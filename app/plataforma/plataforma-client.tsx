@@ -204,6 +204,7 @@ export default function PlataformaClient({
           publicidadActiva: form.get("publicidadActiva") === "on",
           ocultarNombre: form.get("ocultarNombre") === "on",
           ocultarCredito: form.get("ocultarCredito") === "on",
+          dominioCorreo: form.get("dominioCorreo"),
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
@@ -237,6 +238,7 @@ export default function PlataformaClient({
           publicidadActiva: form.get("publicidadActiva") === "on",
           ocultarNombre: form.get("ocultarNombre") === "on",
           ocultarCredito: form.get("ocultarCredito") === "on",
+          dominioCorreo: form.get("dominioCorreo"),
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
@@ -467,6 +469,12 @@ export default function PlataformaClient({
             />
             <input name="colorPrimario" type="color" defaultValue="#111827" className="h-8 rounded-md border border-gray-300" />
             <input name="colorSecundario" type="color" defaultValue="#374151" className="h-8 rounded-md border border-gray-300" />
+            <input
+              name="dominioCorreo"
+              placeholder="dominio-correo.com (opcional)"
+              title="Dominio para los correos que se auto-generan al crear talentos (ej. desde la carga de Actividades). Si se deja vacio, se usa <slug>.local"
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+            />
             <CamposPlan
               tiposPlan={tiposPlan}
               monedas={monedas}
@@ -592,6 +600,13 @@ export default function PlataformaClient({
                     type="color"
                     defaultValue={emp.color_secundario}
                     className="h-8 rounded-md border border-gray-300"
+                  />
+                  <input
+                    name="dominioCorreo"
+                    placeholder="dominio-correo.com (opcional)"
+                    defaultValue={emp.dominio_correo ?? ""}
+                    title="Dominio para los correos que se auto-generan al crear talentos. Si se deja vacio, se usa <slug>.local"
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
                   />
                   <CamposPlan
                     tiposPlan={tiposPlan}

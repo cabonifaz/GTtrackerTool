@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
     publicidadActiva,
     ocultarNombre,
     ocultarCredito,
+    dominioCorreo,
   } = await req.json();
 
   try {
@@ -47,6 +48,7 @@ export async function POST(req: NextRequest) {
       },
       !!ocultarNombre,
       !!ocultarCredito,
+      dominioCorreo || null,
       session.user.email ?? ""
     );
     return NextResponse.json(result[0], { status: 201 });

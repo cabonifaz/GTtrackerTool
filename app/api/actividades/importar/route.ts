@@ -5,8 +5,10 @@ import { requireAdmin } from "@/lib/apiHelpers";
 import { BusinessError } from "@/lib/db";
 import { upsertAsignacion } from "@/lib/services/actividadService";
 import { crearUsuario, listarUsuarios } from "@/lib/services/usuarioService";
+import { obtenerEmpresaPorSlug } from "@/lib/services/empresaService";
 import { PASSWORD_GENERICA } from "@/lib/constants";
 import { ImportarAsignacionResultado } from "@/lib/types";
+import { generarEmailUnico, normalizarNombre, partirNombre, resolverDominioCorreo } from "@/lib/services/recursoService";
 
 // Carga masiva de asignaciones (proveedor/OC-OS/iniciativa/lider tecnico) por
 // talento, para proyectos tipo Actividades por Excel. El periodo (desde/
@@ -37,15 +39,6 @@ function normalizarEncabezado(valor: ExcelJS.CellValue): string {
     .trim();
 }
 
-function normalizarNombre(valor: string): string {
-  return valor
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function celdaFecha(valor: ExcelJS.CellValue): Date | null {
   if (valor instanceof Date) return valor;
   const texto = celdaTexto(valor);
@@ -66,23 +59,6 @@ function aFechaTexto(d: Date): string {
 
 function primerDiaDelMes(d: Date): string {
   return aFechaISO(new Date(d.getFullYear(), d.getMonth(), 1));
-}
-
-function partirNombre(nombreCompleto: string): { nombres: string; apellidos: string } {
-  const partes = nombreCompleto.trim().split(/\s+/).filter(Boolean);
-  if (partes.length <= 1) {
-    return { nombres: nombreCompleto.trim().slice(0, 100), apellidos: nombreCompleto.trim().slice(0, 100) };
-  }
-  return { nombres: partes[0].slice(0, 100), apellidos: partes.slice(1).join(" ").slice(0, 100) };
-}
-
-function slugEmail(valor: string): string {
-  return valor
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, ".")
-    .replace(/^\.+|\.+$/g, "");
 }
 
 export async function POST(req: NextRequest) {
@@ -129,6 +105,8 @@ export async function POST(req: NextRequest) {
   }
 
   const empresaSlug = session.user.empresaSlug ?? "empresa";
+  const empresa = await obtenerEmpresaPorSlug(empresaSlug);
+  const dominioCorreo = resolverDominioCorreo(empresa?.dominio_correo, empresaSlug);
   const usuarios = await listarUsuarios(session.user.idEmpresa!);
   const usuarioPorNombre = new Map(usuarios.map((u) => [normalizarNombre(`${u.nombres} ${u.apellidos}`), u.id_usuario]));
   const emailsExistentes = new Set(usuarios.map((u) => u.email.toLowerCase()));
@@ -166,12 +144,7 @@ export async function POST(req: NextRequest) {
 
       if (!idUsuario) {
         const { nombres, apellidos } = partirNombre(recurso);
-        let email = `${slugEmail(nombres)}.${slugEmail(apellidos)}@${empresaSlug}.local`;
-        let sufijo = 2;
-        while (emailsExistentes.has(email)) {
-          email = `${slugEmail(nombres)}.${slugEmail(apellidos)}${sufijo}@${empresaSlug}.local`;
-          sufijo++;
-        }
+        const email = generarEmailUnico(nombres, apellidos, dominioCorreo, emailsExistentes);
 
         const creado = await crearUsuario(
           nombres,
