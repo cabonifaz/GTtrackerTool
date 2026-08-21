@@ -673,6 +673,82 @@ function CargaMasiva({
   );
 }
 
+function normalizarBusqueda(valor: string): string {
+  return valor
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim();
+}
+
+function BuscadorTalento({
+  talentos,
+  idSeleccionado,
+  onSeleccionar,
+}: {
+  talentos: Usuario[];
+  idSeleccionado: number | null;
+  onSeleccionar: (id: number | null) => void;
+}) {
+  const seleccionado = talentos.find((t) => t.id_usuario === idSeleccionado) ?? null;
+  const [query, setQuery] = useState(seleccionado ? `${seleccionado.nombres} ${seleccionado.apellidos}` : "");
+  const [abierto, setAbierto] = useState(false);
+
+  const resultados = useMemo(() => {
+    const q = normalizarBusqueda(query);
+    if (!q) return talentos.slice(0, 20);
+    return talentos
+      .filter((t) => normalizarBusqueda(`${t.nombres} ${t.apellidos} ${t.email}`).includes(q))
+      .slice(0, 20);
+  }, [talentos, query]);
+
+  function elegir(t: Usuario) {
+    onSeleccionar(t.id_usuario);
+    setQuery(`${t.nombres} ${t.apellidos}`);
+    setAbierto(false);
+  }
+
+  return (
+    <div className="relative">
+      <input
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setAbierto(true);
+          if (idSeleccionado) onSeleccionar(null);
+        }}
+        onFocus={() => setAbierto(true)}
+        onBlur={() => setTimeout(() => setAbierto(false), 150)}
+        placeholder="Escribe para buscar un talento por nombre o correo..."
+        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+      />
+      {abierto && resultados.length > 0 && (
+        <ul className="absolute z-10 mt-1 w-full max-h-56 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-[var(--shadow-1)] text-sm">
+          {resultados.map((t) => (
+            <li key={t.id_usuario}>
+              <button
+                type="button"
+                onMouseDown={() => elegir(t)}
+                className="w-full text-left px-3 py-2 hover:bg-gray-50"
+              >
+                <span className="font-medium">
+                  {t.nombres} {t.apellidos}
+                </span>
+                <span className="text-gray-400"> · {t.email}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {abierto && query && resultados.length === 0 && (
+        <div className="absolute z-10 mt-1 w-full rounded-md border border-gray-200 bg-white shadow-[var(--shadow-1)] px-3 py-2 text-sm text-gray-400">
+          Sin resultados
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FormularioAsignacion({
   modo,
   asignacionExistente,
@@ -693,12 +769,19 @@ function FormularioAsignacion({
   setError: (msg: string | null) => void;
 }) {
   const [tipoTalento, setTipoTalento] = useState<"existente" | "nuevo">("existente");
+  const [idTalentoSeleccionado, setIdTalentoSeleccionado] = useState<number | null>(null);
   const [guardando, setGuardando] = useState(false);
 
   async function guardar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setGuardando(true);
     setError(null);
+
+    if (modo === "crear" && tipoTalento === "existente" && !idTalentoSeleccionado) {
+      setError("Busca y selecciona un talento de la lista");
+      return;
+    }
+
+    setGuardando(true);
     const form = new FormData(e.currentTarget);
     try {
       const body: Record<string, unknown> = {
@@ -718,7 +801,7 @@ function FormularioAsignacion({
         body.periodoDesde = form.get("periodoDesde");
         body.periodoHasta = form.get("periodoHasta");
         if (tipoTalento === "existente") {
-          body.idUsuario = Number(form.get("idUsuario"));
+          body.idUsuario = idTalentoSeleccionado;
         } else {
           body.nombres = form.get("nombres");
           body.apellidos = form.get("apellidos");
@@ -778,14 +861,7 @@ function FormularioAsignacion({
           </div>
 
           {tipoTalento === "existente" ? (
-            <select name="idUsuario" required className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
-              <option value="">Selecciona un talento</option>
-              {talentos.map((t) => (
-                <option key={t.id_usuario} value={t.id_usuario}>
-                  {t.nombres} {t.apellidos} · {t.email}
-                </option>
-              ))}
-            </select>
+            <BuscadorTalento talentos={talentos} idSeleccionado={idTalentoSeleccionado} onSeleccionar={setIdTalentoSeleccionado} />
           ) : (
             <div className="grid gap-2 sm:grid-cols-3">
               <input name="nombres" required placeholder="Nombres" className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
