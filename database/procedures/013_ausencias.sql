@@ -57,6 +57,67 @@ BEGIN
   SELECT LAST_INSERT_ID() AS id_ausencia;
 END $$
 
+DROP PROCEDURE IF EXISTS sp_ausencia_crear_admin $$
+CREATE PROCEDURE sp_ausencia_crear_admin(
+  IN p_id_usuario       INT UNSIGNED,
+  IN p_id_tipo          INT UNSIGNED,
+  IN p_fecha_inicio     DATE,
+  IN p_fecha_fin        DATE,
+  IN p_motivo           VARCHAR(255),
+  IN p_evidencia        LONGBLOB,
+  IN p_evidencia_tipo   VARCHAR(100),
+  IN p_id_empresa_actor INT UNSIGNED,
+  IN p_creado_por       VARCHAR(150)
+)
+BEGIN
+  -- El Admin registra una ausencia ya decidida (avisada por fuera del
+  -- sistema, ej. enfermedad o vacaciones ya coordinadas) -- se crea
+  -- directo en APROBADA, sin pasar por el flujo de aprobacion normal
+  -- del talento (sp_ausencia_crear, que siempre queda en PENDIENTE).
+  DECLARE v_id_estado_aprobada INT UNSIGNED;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM usuarios WHERE id_usuario = p_id_usuario AND activo = 1 AND id_empresa = p_id_empresa_actor
+  ) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Usuario invalido o inactivo';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM maestro WHERE id_maestro = p_id_tipo AND tipo_maestro = 'TIPO_AUSENCIA' AND activo = 1) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Tipo de ausencia invalido';
+  END IF;
+
+  IF p_fecha_inicio IS NULL OR p_fecha_fin IS NULL OR p_fecha_fin < p_fecha_inicio THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El rango de fechas es invalido';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM ausencias
+    WHERE id_usuario = p_id_usuario
+      AND activo = 1
+      AND id_estado IN (
+        SELECT id_maestro FROM maestro WHERE tipo_maestro = 'ESTADO_AUSENCIA' AND codigo IN ('PENDIENTE', 'APROBADA')
+      )
+      AND fecha_inicio <= p_fecha_fin
+      AND fecha_fin >= p_fecha_inicio
+  ) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ese talento ya tiene una ausencia pendiente o aprobada que se cruza con esas fechas';
+  END IF;
+
+  SELECT id_maestro INTO v_id_estado_aprobada
+  FROM maestro WHERE tipo_maestro = 'ESTADO_AUSENCIA' AND codigo = 'APROBADA' LIMIT 1;
+
+  INSERT INTO ausencias (
+    id_usuario, id_tipo, fecha_inicio, fecha_fin, motivo, evidencia, evidencia_tipo,
+    id_estado, aprobado_por, fecha_aprobacion, creado_por
+  )
+  VALUES (
+    p_id_usuario, p_id_tipo, p_fecha_inicio, p_fecha_fin, p_motivo, p_evidencia, p_evidencia_tipo,
+    v_id_estado_aprobada, p_creado_por, NOW(), p_creado_por
+  );
+
+  SELECT LAST_INSERT_ID() AS id_ausencia;
+END $$
+
 DROP PROCEDURE IF EXISTS sp_ausencia_listar_por_usuario $$
 CREATE PROCEDURE sp_ausencia_listar_por_usuario(
   IN p_id_usuario INT UNSIGNED
@@ -77,11 +138,13 @@ END $$
 
 DROP PROCEDURE IF EXISTS sp_ausencia_listar_todas $$
 CREATE PROCEDURE sp_ausencia_listar_todas(
-  IN p_id_usuario       INT UNSIGNED,
+  IN p_ids_usuario      VARCHAR(2000),
   IN p_codigo_estado    VARCHAR(50),
   IN p_id_empresa_actor INT UNSIGNED
 )
 BEGIN
+  -- p_ids_usuario: CSV de id_usuario (mismo patron que los reportes),
+  -- NULL o vacio = todos los talentos.
   SELECT a.id_ausencia, a.id_usuario, CONCAT(u.nombres, ' ', u.apellidos) AS colaborador,
          t.codigo AS codigo_tipo, t.valor AS tipo,
          a.fecha_inicio, a.fecha_fin, a.motivo,
@@ -95,7 +158,7 @@ BEGIN
   JOIN maestro e ON e.id_maestro = a.id_estado
   WHERE a.activo = 1
     AND u.id_empresa = p_id_empresa_actor
-    AND (p_id_usuario IS NULL OR a.id_usuario = p_id_usuario)
+    AND (p_ids_usuario IS NULL OR p_ids_usuario = '' OR FIND_IN_SET(a.id_usuario, p_ids_usuario) > 0)
     AND (p_codigo_estado IS NULL OR e.codigo = p_codigo_estado)
   ORDER BY a.fecha_creacion DESC;
 END $$

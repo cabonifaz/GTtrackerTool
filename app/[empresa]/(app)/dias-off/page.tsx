@@ -31,7 +31,7 @@ export default async function DiasOffPage() {
       misAusenciasIniciales={misAusencias}
       saldoInicial={saldo}
       pendientesIniciales={pendientes}
-      talentosIniciales={talentos.filter((u) => u.codigo_rol === "TALENTO")}
+      talentosIniciales={talentos.filter((u) => u.activo)}
       anioActual={anioActual}
     />
   );

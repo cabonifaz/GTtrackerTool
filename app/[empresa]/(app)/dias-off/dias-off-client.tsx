@@ -3,6 +3,8 @@
 import { useRef, useState, FormEvent } from "react";
 import { Ausencia, AusenciaAdmin, MaestroItem, SaldoVacaciones, Usuario } from "@/lib/types";
 import { CargandoInline, Spinner } from "@/components/Spinner";
+import BuscadorTalento from "@/components/BuscadorTalento";
+import SelectorTalentosMultiple from "@/components/SelectorTalentosMultiple";
 import { fetchJson } from "@/lib/fetchJson";
 
 type TabAdmin = "solicitudes" | "saldos";
@@ -50,12 +52,16 @@ export default function DiasOffClient({
   const [tabAdmin, setTabAdmin] = useState<TabAdmin>("solicitudes");
   const [ausencias, setAusencias] = useState<AusenciaAdmin[]>(pendientesIniciales);
   const [filtroEstado, setFiltroEstado] = useState("PENDIENTE");
-  const [filtroTalento, setFiltroTalento] = useState("");
+  const [idsFiltroTalento, setIdsFiltroTalento] = useState<number[]>([]);
   const [cargandoAusencias, setCargandoAusencias] = useState(false);
   const [procesandoId, setProcesandoId] = useState<number | null>(null);
   const [rechazandoId, setRechazandoId] = useState<number | null>(null);
   const [motivoRechazo, setMotivoRechazo] = useState("");
   const [talentos] = useState<Usuario[]>(talentosIniciales);
+  const [mostrandoFormRegistro, setMostrandoFormRegistro] = useState(false);
+  const [idTalentoRegistro, setIdTalentoRegistro] = useState<number | null>(null);
+  const [enviandoRegistro, setEnviandoRegistro] = useState(false);
+  const evidenciaRegistroRef = useRef<HTMLInputElement>(null);
   const [saldoTalentoId, setSaldoTalentoId] = useState(talentosIniciales[0] ? String(talentosIniciales[0].id_usuario) : "");
   const [saldoAnio, setSaldoAnio] = useState(anioActual);
   const [saldoAdmin, setSaldoAdmin] = useState<SaldoVacaciones | null>(null);
@@ -95,12 +101,40 @@ export default function DiasOffClient({
     try {
       const params = new URLSearchParams();
       if (filtroEstado) params.set("estado", filtroEstado);
-      if (filtroTalento) params.set("idUsuario", filtroTalento);
+      if (idsFiltroTalento.length > 0) params.set("idsUsuario", idsFiltroTalento.join(","));
       setAusencias(await fetchJson<AusenciaAdmin[]>(`/api/ausencias/todas?${params.toString()}`));
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudieron cargar las ausencias");
     }
     setCargandoAusencias(false);
+  }
+
+  function alternarFiltroTalento(id: number) {
+    setIdsFiltroTalento((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  async function registrarAusenciaAdmin(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    if (!idTalentoRegistro) {
+      setError("Busca y selecciona un talento");
+      return;
+    }
+    setEnviandoRegistro(true);
+    const formEl = e.currentTarget;
+    const formData = new FormData(formEl);
+    formData.set("idUsuario", String(idTalentoRegistro));
+    const res = await fetch("/api/ausencias/admin", { method: "POST", body: formData });
+    if (!res.ok) {
+      setError((await res.json()).error);
+      setEnviandoRegistro(false);
+      return;
+    }
+    formEl.reset();
+    setIdTalentoRegistro(null);
+    setMostrandoFormRegistro(false);
+    await buscarAusenciasAdmin();
+    setEnviandoRegistro(false);
   }
 
   async function aprobar(id: number) {
@@ -332,44 +366,118 @@ export default function DiasOffClient({
 
           {tabAdmin === "solicitudes" && (
             <div className="space-y-4">
-              <div className="rounded-lg border border-gray-200 bg-white p-4 flex flex-wrap items-end gap-3">
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">Estado</label>
-                  <select
-                    value={filtroEstado}
-                    onChange={(e) => setFiltroEstado(e.target.value)}
-                    className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-                  >
-                    {ESTADOS_FILTRO.map((e) => (
-                      <option key={e.codigo} value={e.codigo}>
-                        {e.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">Talento</label>
-                  <select
-                    value={filtroTalento}
-                    onChange={(e) => setFiltroTalento(e.target.value)}
-                    className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-                  >
-                    <option value="">Todos</option>
-                    {talentos.map((t) => (
-                      <option key={t.id_usuario} value={t.id_usuario}>
-                        {t.nombres} {t.apellidos}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {!mostrandoFormRegistro ? (
                 <button
-                  onClick={buscarAusenciasAdmin}
-                  disabled={cargandoAusencias}
-                  className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+                  onClick={() => setMostrandoFormRegistro(true)}
+                  className="text-sm text-[var(--color-primario)] underline"
                 >
-                  {cargandoAusencias && <Spinner />}
-                  Buscar
+                  + Registrar ausencia
                 </button>
+              ) : (
+                <form
+                  onSubmit={registrarAusenciaAdmin}
+                  className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3"
+                >
+                  <p className="text-sm font-medium">
+                    Registrar ausencia ya aprobada (enfermedad, vacaciones coordinadas, etc.)
+                  </p>
+                  <BuscadorTalento talentos={talentos} idSeleccionado={idTalentoRegistro} onSeleccionar={setIdTalentoRegistro} />
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <select name="idTipo" required className="rounded-md border border-gray-300 px-3 py-2 text-sm">
+                      <option value="">Selecciona un tipo</option>
+                      {tipos.map((t) => (
+                        <option key={t.id_maestro} value={t.id_maestro}>
+                          {t.valor}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      name="motivo"
+                      placeholder="Motivo (opcional)"
+                      className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    />
+                    <div className="space-y-1">
+                      <label className="text-xs text-gray-500">Desde</label>
+                      <input
+                        type="date"
+                        name="fechaInicio"
+                        required
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-gray-500">Hasta</label>
+                      <input
+                        type="date"
+                        name="fechaFin"
+                        required
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-xs text-gray-500">Evidencia (opcional, foto, maximo 3MB)</label>
+                      <input
+                        ref={evidenciaRegistroRef}
+                        type="file"
+                        name="evidencia"
+                        accept="image/*"
+                        className="w-full text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      disabled={enviandoRegistro}
+                      className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+                    >
+                      {enviandoRegistro && <Spinner />}
+                      Registrar (queda aprobada)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMostrandoFormRegistro(false)}
+                      className="text-sm text-gray-500 underline"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Estado</label>
+                    <select
+                      value={filtroEstado}
+                      onChange={(e) => setFiltroEstado(e.target.value)}
+                      className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    >
+                      {ESTADOS_FILTRO.map((e) => (
+                        <option key={e.codigo} value={e.codigo}>
+                          {e.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    onClick={buscarAusenciasAdmin}
+                    disabled={cargandoAusencias}
+                    className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+                  >
+                    {cargandoAusencias && <Spinner />}
+                    Buscar
+                  </button>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Talentos (vacio = todos)</label>
+                  <SelectorTalentosMultiple
+                    talentos={talentos}
+                    idsSeleccionados={idsFiltroTalento}
+                    onAlternar={alternarFiltroTalento}
+                    todosLosUsuarios={talentos}
+                  />
+                </div>
               </div>
 
               <div className="rounded-lg border border-gray-200 bg-white overflow-x-auto">

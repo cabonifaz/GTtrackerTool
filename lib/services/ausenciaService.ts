@@ -25,12 +25,44 @@ export function crearAusencia(
   ]);
 }
 
+export function crearAusenciaAdmin(
+  idUsuario: number,
+  idTipo: number,
+  fechaInicio: string,
+  fechaFin: string,
+  motivo: string | null,
+  evidencia: Buffer | null,
+  evidenciaTipo: string | null,
+  idEmpresaActor: number,
+  creadoPor: string
+) {
+  return executeProcedure<{ id_ausencia: number }>("sp_ausencia_crear_admin", [
+    idUsuario,
+    idTipo,
+    fechaInicio,
+    fechaFin,
+    motivo,
+    evidencia,
+    evidenciaTipo,
+    idEmpresaActor,
+    creadoPor,
+  ]);
+}
+
 export function listarAusenciasPorUsuario(idUsuario: number) {
   return executeProcedure<Ausencia>("sp_ausencia_listar_por_usuario", [idUsuario]);
 }
 
-export function listarAusenciasTodas(idUsuario: number | null, codigoEstado: string | null, idEmpresaActor: number) {
-  return executeProcedure<AusenciaAdmin>("sp_ausencia_listar_todas", [idUsuario, codigoEstado, idEmpresaActor]);
+export function listarAusenciasTodas(
+  idsUsuario: number[] | null,
+  codigoEstado: string | null,
+  idEmpresaActor: number
+) {
+  return executeProcedure<AusenciaAdmin>("sp_ausencia_listar_todas", [
+    idsUsuario && idsUsuario.length > 0 ? idsUsuario.join(",") : null,
+    codigoEstado,
+    idEmpresaActor,
+  ]);
 }
 
 interface EvidenciaRow {

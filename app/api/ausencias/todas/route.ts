@@ -6,15 +6,15 @@ export async function GET(req: NextRequest) {
   const session = await requireAdmin();
   if (session instanceof NextResponse) return session;
 
-  const idUsuarioParam = req.nextUrl.searchParams.get("idUsuario");
+  const idsUsuarioParam = req.nextUrl.searchParams.get("idsUsuario");
   const estado = req.nextUrl.searchParams.get("estado");
 
+  const idsUsuario = idsUsuarioParam
+    ? idsUsuarioParam.split(",").map(Number).filter((n) => !isNaN(n))
+    : null;
+
   try {
-    const ausencias = await listarAusenciasTodas(
-      idUsuarioParam ? Number(idUsuarioParam) : null,
-      estado,
-      session.user.idEmpresa!
-    );
+    const ausencias = await listarAusenciasTodas(idsUsuario, estado, session.user.idEmpresa!);
     return NextResponse.json(ausencias);
   } catch (err) {
     return handleApiError(err);
