@@ -34,5 +34,21 @@ export function handleApiError(err: unknown): NextResponse {
     return NextResponse.json({ error: err.message }, { status: 400 });
   }
   console.error(err);
-  return NextResponse.json({ error: "Error interno" }, { status: 500 });
+
+  // Para errores inesperados (no de negocio), "Error interno" a secas no
+  // ayuda a nadie a diagnosticar nada -- se suma el detalle tecnico si
+  // esta disponible (sqlMessage de MySQL o el mensaje del Error), sin
+  // exponer el stack completo. Son mensajes de MySQL (columna, largo,
+  // duplicado, etc.), no datos sensibles.
+  const detalle =
+    err && typeof err === "object" && "sqlMessage" in err
+      ? String((err as { sqlMessage?: unknown }).sqlMessage ?? "")
+      : err instanceof Error
+        ? err.message
+        : null;
+
+  return NextResponse.json(
+    { error: detalle ? `Error interno: ${detalle}` : "Error interno" },
+    { status: 500 }
+  );
 }

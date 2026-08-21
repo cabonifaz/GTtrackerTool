@@ -10,7 +10,12 @@ function aInputDatetimeLocal(fechaMySQL: string) {
 }
 
 function aFechaMySQL(valorInput: string) {
-  return valorInput.replace("T", " ") + ":00";
+  const base = valorInput.replace("T", " ");
+  // Con step="1" el datetime-local ya manda los segundos (HH:MM:SS) --
+  // agregar ":00" encima de eso deja un formato invalido de 4 partes
+  // (HH:MM:SS:00) que MySQL rechaza. Solo se completa con :00 si el
+  // valor todavia viene sin segundos (HH:MM).
+  return /\d{2}:\d{2}:\d{2}$/.test(base) ? base : `${base}:00`;
 }
 
 type ModoTarea = "existente" | "nueva";

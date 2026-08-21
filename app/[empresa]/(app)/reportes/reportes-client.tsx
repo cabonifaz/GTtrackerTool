@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Proyecto,
   ProyeccionRow,
@@ -54,6 +54,9 @@ export default function ReportesClient({
   const [vista, setVista] = useState<Vista>("detalle");
   const [usuarios] = useState<Usuario[]>(usuariosIniciales);
   const [idsSeleccionados, setIdsSeleccionados] = useState<number[]>([]);
+  const [filtroProyectoTalentos, setFiltroProyectoTalentos] = useState("");
+  const [idsProyecto, setIdsProyecto] = useState<Set<number> | null>(null);
+  const [cargandoIdsProyecto, setCargandoIdsProyecto] = useState(false);
   const [fechaInicio, setFechaInicio] = useState(fechaInicioInicial);
   const [fechaFin, setFechaFin] = useState(fechaFinInicial);
   const [filas, setFilas] = useState<ReporteDetalleRow[]>(filasIniciales);
@@ -261,6 +264,26 @@ export default function ReportesClient({
     );
   }
 
+  // Prefiltro opcional por proyecto: con 200+ talentos en la empresa,
+  // acotar primero a los asignados a un proyecto hace que el buscador de
+  // abajo tenga muchas menos opciones entre las que elegir.
+  useEffect(() => {
+    if (!filtroProyectoTalentos) {
+      setIdsProyecto(null);
+      return;
+    }
+    setCargandoIdsProyecto(true);
+    fetchJson<{ id_usuario: number }[]>(`/api/proyectos/${filtroProyectoTalentos}/asignaciones`)
+      .then((asignados) => setIdsProyecto(new Set(asignados.map((a) => a.id_usuario))))
+      .catch(() => setIdsProyecto(null))
+      .finally(() => setCargandoIdsProyecto(false));
+  }, [filtroProyectoTalentos]);
+
+  const talentosCandidatos = useMemo(
+    () => (idsProyecto ? usuarios.filter((u) => idsProyecto.has(u.id_usuario)) : usuarios),
+    [usuarios, idsProyecto]
+  );
+
   const totalHoras = filas.reduce((acc, f) => acc + Number(f.horas), 0);
   const totalHorasPorTarea = filasPorTarea.reduce((acc, f) => acc + Number(f.horas), 0);
   const totalSegundos = filas.reduce((acc, f) => acc + Number(f.duracion_segundos), 0);
@@ -431,23 +454,32 @@ export default function ReportesClient({
         </div>
 
         {esAdmin && usuarios.length > 0 && (
-          <div className="space-y-1">
+          <div className="space-y-2">
             <p className="text-sm font-medium">Talentos (vacio = todos)</p>
-            <div className="flex flex-wrap gap-2">
-              {usuarios.map((u) => (
-                <button
-                  key={u.id_usuario}
-                  onClick={() => alternarUsuario(u.id_usuario)}
-                  className={`rounded-full px-3 py-1 text-xs border ${
-                    idsSeleccionados.includes(u.id_usuario)
-                      ? "bg-[var(--color-primario)] text-white border-[var(--color-primario)]"
-                      : "border-gray-300 text-gray-600"
-                  }`}
+            {proyectos.length > 0 && (
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-gray-500">Acotar por proyecto</label>
+                <select
+                  value={filtroProyectoTalentos}
+                  onChange={(e) => setFiltroProyectoTalentos(e.target.value)}
+                  className="rounded-md border border-gray-300 px-2 py-1 text-xs"
                 >
-                  {u.nombres} {u.apellidos}
-                </button>
-              ))}
-            </div>
+                  <option value="">Todos los proyectos</option>
+                  {proyectos.map((p) => (
+                    <option key={p.id_proyecto} value={p.id_proyecto}>
+                      {p.nombre}
+                    </option>
+                  ))}
+                </select>
+                {cargandoIdsProyecto && <Spinner className="h-3 w-3" />}
+              </div>
+            )}
+            <SelectorTalentosMultiple
+              talentos={talentosCandidatos}
+              idsSeleccionados={idsSeleccionados}
+              onAlternar={alternarUsuario}
+              todosLosUsuarios={usuarios}
+            />
           </div>
         )}
       </div>
@@ -1068,6 +1100,107 @@ export default function ReportesClient({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function normalizarBusquedaTalento(valor: string): string {
+  return valor
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim();
+}
+
+function SelectorTalentosMultiple({
+  talentos,
+  idsSeleccionados,
+  onAlternar,
+  todosLosUsuarios,
+}: {
+  talentos: Usuario[];
+  idsSeleccionados: number[];
+  onAlternar: (id: number) => void;
+  todosLosUsuarios: Usuario[];
+}) {
+  const [query, setQuery] = useState("");
+  const [abierto, setAbierto] = useState(false);
+
+  const resultados = useMemo(() => {
+    const q = normalizarBusquedaTalento(query);
+    const base = q
+      ? talentos.filter((t) => normalizarBusquedaTalento(`${t.nombres} ${t.apellidos} ${t.email}`).includes(q))
+      : talentos;
+    return base.slice(0, 20);
+  }, [talentos, query]);
+
+  const seleccionados = idsSeleccionados
+    .map((id) => todosLosUsuarios.find((u) => u.id_usuario === id))
+    .filter((u): u is Usuario => !!u);
+
+  return (
+    <div className="space-y-2">
+      {seleccionados.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {seleccionados.map((u) => (
+            <span
+              key={u.id_usuario}
+              className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primario)] text-white text-xs pl-3 pr-1.5 py-1"
+            >
+              {u.nombres} {u.apellidos}
+              <button
+                type="button"
+                onClick={() => onAlternar(u.id_usuario)}
+                aria-label={`Quitar ${u.nombres} ${u.apellidos}`}
+                className="rounded-full hover:bg-white/20 h-4 w-4 inline-flex items-center justify-center"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="relative max-w-sm">
+        <input
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setAbierto(true);
+          }}
+          onFocus={() => setAbierto(true)}
+          onBlur={() => setTimeout(() => setAbierto(false), 150)}
+          placeholder="Buscar talento por nombre o correo..."
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+        />
+        {abierto && resultados.length > 0 && (
+          <ul className="absolute z-10 mt-1 w-full max-h-56 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-[var(--shadow-1)] text-sm">
+            {resultados.map((t) => (
+              <li key={t.id_usuario}>
+                <button
+                  type="button"
+                  onMouseDown={() => onAlternar(t.id_usuario)}
+                  className={`w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center justify-between ${
+                    idsSeleccionados.includes(t.id_usuario) ? "bg-gray-50" : ""
+                  }`}
+                >
+                  <span>
+                    <span className="font-medium">
+                      {t.nombres} {t.apellidos}
+                    </span>
+                    <span className="text-gray-400"> · {t.email}</span>
+                  </span>
+                  {idsSeleccionados.includes(t.id_usuario) && <span className="text-[var(--color-primario)]">✓</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {abierto && query && resultados.length === 0 && (
+          <div className="absolute z-10 mt-1 w-full rounded-md border border-gray-200 bg-white shadow-[var(--shadow-1)] px-3 py-2 text-sm text-gray-400">
+            Sin resultados
+          </div>
+        )}
+      </div>
     </div>
   );
 }
