@@ -1,20 +1,42 @@
 "use client";
 
-import { useRef, useState, FormEvent } from "react";
-import { ImportarUsuarioResultado, Usuario, UsuarioSistema } from "@/lib/types";
-import { Spinner } from "@/components/Spinner";
+import { useMemo, useRef, useState, FormEvent } from "react";
+import {
+  ImportarUsuarioResultado,
+  MaestroItem,
+  MiProyecto,
+  Proyecto,
+  Usuario,
+  UsuarioSistema,
+} from "@/lib/types";
+import { CargandoInline, Spinner } from "@/components/Spinner";
 import { fetchJson } from "@/lib/fetchJson";
 import { PASSWORD_GENERICA } from "@/lib/constants";
+
+function normalizarBusqueda(valor: string): string {
+  return valor
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
 
 export default function UsuariosClient({
   usuariosIniciales,
   sistemasIniciales,
+  proyectosIniciales = [],
+  paisesCalendarioIniciales = [],
 }: {
   usuariosIniciales: Usuario[];
   sistemasIniciales: UsuarioSistema[];
+  proyectosIniciales?: Proyecto[];
+  paisesCalendarioIniciales?: MaestroItem[];
 }) {
   const [usuarios, setUsuarios] = useState<Usuario[]>(usuariosIniciales);
   const [sistemas, setSistemas] = useState<UsuarioSistema[]>(sistemasIniciales);
+  const [proyectos, setProyectos] = useState<Proyecto[]>(proyectosIniciales);
+  const [paisesCalendario] = useState<MaestroItem[]>(paisesCalendarioIniciales);
+  const [busqueda, setBusqueda] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [nuevaCuenta, setNuevaCuenta] = useState<{ apiKey: string; apiSecret: string } | null>(
     null
@@ -25,21 +47,139 @@ export default function UsuariosClient({
   const [idsProcesando, setIdsProcesando] = useState<Set<number | string>>(new Set());
   const [editandoUsuario, setEditandoUsuario] = useState<number | null>(null);
 
+  // Asignacion de proyectos por usuario
+  const [panelProyectosUsuario, setPanelProyectosUsuario] = useState<number | null>(null);
+  const [proyectosPorUsuario, setProyectosPorUsuario] = useState<Record<number, MiProyecto[]>>({});
+  const [cargandoProyectosUsuario, setCargandoProyectosUsuario] = useState(false);
+  const [procesandoAsignacion, setProcesandoAsignacion] = useState<Set<string>>(new Set());
+  const [guardandoPaisAsignacion, setGuardandoPaisAsignacion] = useState<string | null>(null);
+
+  // Carga masiva
   const inputArchivoRef = useRef<HTMLInputElement>(null);
   const [descargandoPlantilla, setDescargandoPlantilla] = useState(false);
   const [importando, setImportando] = useState(false);
   const [resultadosImport, setResultadosImport] = useState<ImportarUsuarioResultado[] | null>(null);
 
+  const usuariosFiltrados = useMemo(() => {
+    const q = normalizarBusqueda(busqueda);
+    if (!q) return [];
+    return usuarios.filter((u) => {
+      const texto = `${u.nombres} ${u.apellidos} ${u.email} ${u.numero_documento ?? ""} ${u.rol}`;
+      return normalizarBusqueda(texto).includes(q);
+    });
+  }, [usuarios, busqueda]);
+
   async function cargarTodo() {
     try {
-      const [u, s] = await Promise.all([
+      const [u, s, p] = await Promise.all([
         fetchJson<Usuario[]>("/api/usuarios"),
         fetchJson<UsuarioSistema[]>("/api/usuarios-sistema"),
+        fetchJson<Proyecto[]>("/api/proyectos"),
       ]);
       setUsuarios(u);
       setSistemas(s);
+      setProyectos(p.filter((x) => x.activo));
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudieron cargar los usuarios");
+    }
+  }
+
+  async function abrirPanelProyectos(idUsuario: number) {
+    if (panelProyectosUsuario === idUsuario) {
+      setPanelProyectosUsuario(null);
+      return;
+    }
+    setPanelProyectosUsuario(idUsuario);
+    if (!proyectosPorUsuario[idUsuario]) {
+      setCargandoProyectosUsuario(true);
+      try {
+        const asignados = await fetchJson<MiProyecto[]>(`/api/usuarios/${idUsuario}/proyectos`);
+        setProyectosPorUsuario((prev) => ({ ...prev, [idUsuario]: asignados }));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "No se pudieron cargar los proyectos del usuario");
+      } finally {
+        setCargandoProyectosUsuario(false);
+      }
+    }
+  }
+
+  async function alternarAsignacionProyecto(idUsuario: number, idProyecto: number, yaAsignado: boolean) {
+    const clave = `${idUsuario}:${idProyecto}`;
+    setProcesandoAsignacion((prev) => new Set(prev).add(clave));
+    setError(null);
+    try {
+      if (yaAsignado) {
+        const res = await fetch(`/api/usuarios/${idUsuario}/proyectos?idProyecto=${idProyecto}`, {
+          method: "DELETE",
+        });
+        if (!res.ok) throw new Error((await res.json()).error);
+        setProyectosPorUsuario((prev) => ({
+          ...prev,
+          [idUsuario]: (prev[idUsuario] ?? []).filter((p) => p.id_proyecto !== idProyecto),
+        }));
+      } else {
+        const res = await fetch(`/api/usuarios/${idUsuario}/proyectos`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idProyecto }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error);
+        const pInfo = proyectos.find((p) => p.id_proyecto === idProyecto);
+        setProyectosPorUsuario((prev) => ({
+          ...prev,
+          [idUsuario]: [
+            ...(prev[idUsuario] ?? []),
+            {
+              id_proyecto: idProyecto,
+              proyecto: pInfo?.nombre ?? "Proyecto",
+              predeterminado: (prev[idUsuario]?.length ?? 0) === 0 ? 1 : 0,
+              id_pais_calendario: null,
+              codigo_pais: null,
+              pais: null,
+            },
+          ],
+        }));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al actualizar asignacion");
+    } finally {
+      setProcesandoAsignacion((prev) => {
+        const next = new Set(prev);
+        next.delete(clave);
+        return next;
+      });
+    }
+  }
+
+  async function cambiarPaisCalendario(idUsuario: number, idProyecto: number, idPaisCalendario: string) {
+    const clave = `${idUsuario}:${idProyecto}`;
+    setGuardandoPaisAsignacion(clave);
+    setError(null);
+    try {
+      const res = await fetch(`/api/usuarios/${idUsuario}/proyectos`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idProyecto, idPaisCalendario: idPaisCalendario || null }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      const paisSel = paisesCalendario.find((pc) => String(pc.id_maestro) === idPaisCalendario);
+      setProyectosPorUsuario((prev) => ({
+        ...prev,
+        [idUsuario]: (prev[idUsuario] ?? []).map((p) =>
+          p.id_proyecto === idProyecto
+            ? {
+                ...p,
+                id_pais_calendario: paisSel ? paisSel.id_maestro : null,
+                codigo_pais: paisSel ? paisSel.codigo : null,
+                pais: paisSel ? paisSel.valor : null,
+              }
+            : p
+        ),
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al actualizar pais de calendario");
+    } finally {
+      setGuardandoPaisAsignacion(null);
     }
   }
 
@@ -50,13 +190,14 @@ export default function UsuariosClient({
     setEnviandoUsuario(true);
     const formEl = e.currentTarget;
     const form = new FormData(formEl);
+    const email = String(form.get("email"));
     const res = await fetch("/api/usuarios", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         nombres: form.get("nombres"),
         apellidos: form.get("apellidos"),
-        email: form.get("email"),
+        email: email,
         codigoRol: form.get("codigoRol"),
         numeroDocumento: form.get("numeroDocumento") || null,
       }),
@@ -70,6 +211,7 @@ export default function UsuariosClient({
     setPasswordGenerica(data.passwordGenerica);
     formEl.reset();
     await cargarTodo();
+    setBusqueda(email);
     setEnviandoUsuario(false);
   }
 
@@ -244,81 +386,207 @@ export default function UsuariosClient({
           </button>
         </form>
 
-        <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
-          {usuarios.map((u) => (
-            <li key={u.id_usuario} className="px-4 py-3 text-sm space-y-2">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <span className="font-medium">
-                    {u.nombres} {u.apellidos}
-                  </span>
-                  <span className="text-gray-400"> · {u.email} · {u.rol}</span>
-                  {u.numero_documento && <span className="text-gray-400"> · Doc: {u.numero_documento}</span>}
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={u.activo ? "text-green-600" : "text-gray-400"}>
-                    {u.activo ? "Activo" : "Inactivo"}
-                  </span>
-                  <button
-                    onClick={() => setEditandoUsuario(editandoUsuario === u.id_usuario ? null : u.id_usuario)}
-                    className="text-gray-500 hover:text-gray-900 underline"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => alternarActivo(u)}
-                    disabled={idsProcesando.has(u.id_usuario)}
-                    className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-900 underline disabled:opacity-50"
-                  >
-                    {idsProcesando.has(u.id_usuario) && <Spinner className="h-3 w-3" />}
-                    {u.activo ? "Dar de baja" : "Reactivar"}
-                  </button>
-                </div>
-              </div>
-
-              {editandoUsuario === u.id_usuario && (
-                <form
-                  onSubmit={(e) => guardarEdicion(u, e)}
-                  className="grid gap-2 sm:grid-cols-5 bg-gray-50 rounded-md p-3"
+        {/* Buscador de usuarios */}
+        <div className="pt-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="relative max-w-md flex-1 min-w-[260px]">
+              <input
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar usuario por nombre, apellido, correo o documento..."
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm pr-16"
+              />
+              {busqueda && (
+                <button
+                  type="button"
+                  onClick={() => setBusqueda("")}
+                  className="absolute right-2.5 top-2 text-xs text-gray-400 hover:text-gray-600"
                 >
-                  <input
-                    name="nombres"
-                    required
-                    defaultValue={u.nombres}
-                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
-                  />
-                  <input
-                    name="apellidos"
-                    required
-                    defaultValue={u.apellidos}
-                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
-                  />
-                  <input
-                    name="numeroDocumento"
-                    defaultValue={u.numero_documento ?? ""}
-                    placeholder="N.º documento (opcional)"
-                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
-                  />
-                  <select
-                    name="codigoRol"
-                    defaultValue={u.codigo_rol}
-                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
-                  >
-                    <option value="TALENTO">Talento</option>
-                    <option value="ADMIN">Admin</option>
-                  </select>
-                  <button
-                    disabled={idsProcesando.has(`editar-${u.id_usuario}`)}
-                    className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-3 py-1.5 disabled:opacity-50"
-                  >
-                    {idsProcesando.has(`editar-${u.id_usuario}`) && <Spinner />}
-                    Guardar
-                  </button>
-                </form>
+                  Limpiar
+                </button>
               )}
-            </li>
-          ))}
-        </ul>
+            </div>
+            {busqueda.trim() && (
+              <span className="text-xs text-gray-500">
+                {usuariosFiltrados.length}{" "}
+                {usuariosFiltrados.length === 1 ? "usuario encontrado" : "usuarios encontrados"}
+              </span>
+            )}
+          </div>
+
+          {!busqueda.trim() ? (
+            <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500 bg-gray-50/50">
+              Escribe en el buscador para encontrar y gestionar un usuario o asignar sus proyectos.
+            </div>
+          ) : usuariosFiltrados.length === 0 ? (
+            <div className="rounded-lg border border-gray-200 bg-white p-6 text-center text-sm text-gray-400">
+              No se encontraron usuarios que coincidan con &quot;{busqueda}&quot;
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
+              {usuariosFiltrados.map((u) => {
+                const asignados = proyectosPorUsuario[u.id_usuario];
+                const cantidadAsignados = asignados?.length;
+                const estaAbierto = panelProyectosUsuario === u.id_usuario;
+
+                return (
+                  <li key={u.id_usuario} className="text-sm">
+                    <div className="p-4 space-y-2">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div>
+                          <span className="font-medium">
+                            {u.nombres} {u.apellidos}
+                          </span>
+                          <span className="text-gray-400"> · {u.email} · {u.rol}</span>
+                          {u.numero_documento && <span className="text-gray-400"> · Doc: {u.numero_documento}</span>}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={u.activo ? "text-green-600" : "text-gray-400"}>
+                            {u.activo ? "Activo" : "Inactivo"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => abrirPanelProyectos(u.id_usuario)}
+                            className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded border transition-colors ${
+                              estaAbierto
+                                ? "border-[var(--color-primario)] text-[var(--color-primario)] bg-white"
+                                : "border-gray-300 text-gray-700 bg-gray-50 hover:bg-gray-100"
+                            }`}
+                          >
+                            Proyectos {cantidadAsignados !== undefined ? `(${cantidadAsignados})` : ""}
+                          </button>
+                          <button
+                            onClick={() => setEditandoUsuario(editandoUsuario === u.id_usuario ? null : u.id_usuario)}
+                            className="text-gray-500 hover:text-gray-900 underline text-xs"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => alternarActivo(u)}
+                            disabled={idsProcesando.has(u.id_usuario)}
+                            className="inline-flex items-center gap-1 text-gray-500 hover:text-gray-900 underline text-xs disabled:opacity-50"
+                          >
+                            {idsProcesando.has(u.id_usuario) && <Spinner className="h-3 w-3" />}
+                            {u.activo ? "Dar de baja" : "Reactivar"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {editandoUsuario === u.id_usuario && (
+                        <form
+                          onSubmit={(e) => guardarEdicion(u, e)}
+                          className="grid gap-2 sm:grid-cols-5 bg-gray-50 rounded-md p-3"
+                        >
+                          <input
+                            name="nombres"
+                            required
+                            defaultValue={u.nombres}
+                            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                          />
+                          <input
+                            name="apellidos"
+                            required
+                            defaultValue={u.apellidos}
+                            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                          />
+                          <input
+                            name="numeroDocumento"
+                            defaultValue={u.numero_documento ?? ""}
+                            placeholder="N.º documento (opcional)"
+                            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                          />
+                          <select
+                            name="codigoRol"
+                            defaultValue={u.codigo_rol}
+                            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                          >
+                            <option value="TALENTO">Talento</option>
+                            <option value="ADMIN">Admin</option>
+                          </select>
+                          <button
+                            disabled={idsProcesando.has(`editar-${u.id_usuario}`)}
+                            className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-3 py-1.5 disabled:opacity-50"
+                          >
+                            {idsProcesando.has(`editar-${u.id_usuario}`) && <Spinner />}
+                            Guardar
+                          </button>
+                        </form>
+                      )}
+                    </div>
+
+                    {/* Panel de Asignacion de Proyectos */}
+                    {estaAbierto && (
+                      <div className="px-4 pb-4 pt-2 bg-gray-50 border-t border-gray-100 space-y-2.5">
+                        <p className="text-xs font-semibold text-gray-700">
+                          Proyectos asignados a {u.nombres} {u.apellidos}:
+                        </p>
+                        {cargandoProyectosUsuario && !asignados ? (
+                          <CargandoInline texto="Cargando proyectos..." />
+                        ) : proyectos.length === 0 ? (
+                          <p className="text-xs text-gray-400">No hay proyectos activos en la empresa.</p>
+                        ) : (
+                          <div className="flex flex-col gap-2">
+                            {proyectos.map((p) => {
+                              const asignado = (asignados ?? []).find((ap) => ap.id_proyecto === p.id_proyecto);
+                              const clave = `${u.id_usuario}:${p.id_proyecto}`;
+                              const procesando = procesandoAsignacion.has(clave);
+                              const guardandoPais = guardandoPaisAsignacion === clave;
+
+                              return (
+                                <div key={p.id_proyecto} className="flex flex-wrap items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => alternarAsignacionProyecto(u.id_usuario, p.id_proyecto, !!asignado)}
+                                    disabled={procesando}
+                                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs border transition-colors disabled:opacity-50 ${
+                                      asignado
+                                        ? "bg-[var(--color-primario)] text-white border-[var(--color-primario)] font-medium"
+                                        : "border-gray-300 text-gray-700 bg-white hover:bg-gray-100"
+                                    }`}
+                                  >
+                                    {procesando && <Spinner className="h-3 w-3" />}
+                                    {asignado && <span>✓</span>}
+                                    {p.nombre}
+                                    {p.cliente && (
+                                      <span className={asignado ? "text-white/80" : "text-gray-400"}>
+                                        {" "}· {p.cliente}
+                                      </span>
+                                    )}
+                                  </button>
+
+                                  {asignado && paisesCalendario.length > 0 && (
+                                    <span className="inline-flex items-center gap-1.5">
+                                      <select
+                                        value={asignado.id_pais_calendario ?? ""}
+                                        onChange={(e) =>
+                                          cambiarPaisCalendario(u.id_usuario, p.id_proyecto, e.target.value)
+                                        }
+                                        disabled={guardandoPais}
+                                        className="rounded-md border border-gray-300 px-2 py-0.5 text-xs bg-white disabled:opacity-50"
+                                      >
+                                        <option value="">Sin calendario de feriados</option>
+                                        {paisesCalendario.map((pc) => (
+                                          <option key={pc.id_maestro} value={pc.id_maestro}>
+                                            {pc.valor}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      {guardandoPais && <Spinner className="h-3 w-3" />}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </div>
 
       <div className="space-y-4">
