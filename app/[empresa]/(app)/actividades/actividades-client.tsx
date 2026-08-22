@@ -64,8 +64,34 @@ export default function ActividadesClient({
   const [busqueda, setBusqueda] = useState("");
   const [mostrarRevocados, setMostrarRevocados] = useState(false);
   const [seleccionados, setSeleccionados] = useState<Set<number>>(new Set());
+  const [seBusco, setSeBusco] = useState(!esAdmin);
+  const [cargandoBusqueda, setCargandoBusqueda] = useState(false);
+
+  // El Admin puede tener cientos de talentos -- no se trae todo de una al
+  // entrar a la pantalla (ver comentario equivalente en Tareas). Se
+  // busca recien cuando el Admin lo pide, opcionalmente acotado a un
+  // proyecto. El talento si carga sus propias asignaciones de una, son
+  // pocas por definicion.
+  async function buscarAsignaciones() {
+    if (!esAdmin) return;
+    setCargandoBusqueda(true);
+    setError(null);
+    try {
+      const qs = filtroProyecto ? `?idProyecto=${filtroProyecto}` : "";
+      setAsignaciones(await fetchJson<ProyectoAsignacion[]>(`/api/actividades/asignaciones${qs}`));
+      setSeBusco(true);
+      setSeleccionados(new Set());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudieron cargar las asignaciones");
+    }
+    setCargandoBusqueda(false);
+  }
 
   async function recargarAsignaciones() {
+    if (esAdmin) {
+      await buscarAsignaciones();
+      return;
+    }
     setAsignaciones(await fetchJson<ProyectoAsignacion[]>("/api/actividades/asignaciones"));
     setSeleccionados(new Set());
   }
@@ -375,7 +401,7 @@ export default function ActividadesClient({
         </div>
       )}
 
-      {esAdmin && (
+      {esAdmin && seBusco && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {(
             [
@@ -450,6 +476,14 @@ export default function ActividadesClient({
             <input type="checkbox" checked={mostrarRevocados} onChange={(e) => setMostrarRevocados(e.target.checked)} />
             Mostrar revocados
           </label>
+          <button
+            onClick={buscarAsignaciones}
+            disabled={cargandoBusqueda}
+            className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+          >
+            {cargandoBusqueda && <Spinner />}
+            Buscar
+          </button>
           {(filtroProyecto || filtroPeriodo || filtroEstado || busqueda) && (
             <button
               onClick={() => {
@@ -506,7 +540,12 @@ export default function ActividadesClient({
 
       {esAdmin ? (
         <div className="space-y-4">
-          {gruposPeriodo.map((g) => {
+          {!seBusco && (
+            <p className="px-4 py-6 text-sm text-center text-gray-400 rounded-lg border border-gray-200 bg-white">
+              Elige un proyecto (opcional) y presiona Buscar para ver las asignaciones
+            </p>
+          )}
+          {seBusco && gruposPeriodo.map((g) => {
             const todosCerrados = g.items.every((a) => a.codigo_estado === "CERRADO" || a.activo === 0);
             const hayCerrables = g.items.some((a) => a.activo === 1 && a.codigo_estado !== "CERRADO");
             const idsGrupo = g.items.map((a) => a.id_asignacion);
@@ -558,9 +597,9 @@ export default function ActividadesClient({
               </div>
             );
           })}
-          {gruposPeriodo.length === 0 && (
+          {seBusco && gruposPeriodo.length === 0 && (
             <p className="px-4 py-6 text-sm text-center text-gray-400 rounded-lg border border-gray-200 bg-white">
-              {asignaciones.length === 0 ? "Todavia no se cargo ninguna asignacion" : "Ningun resultado con estos filtros"}
+              {asignaciones.length === 0 ? "Sin asignaciones para este proyecto" : "Ningun resultado con estos filtros"}
             </p>
           )}
         </div>
