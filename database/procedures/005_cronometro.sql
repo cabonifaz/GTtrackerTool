@@ -231,6 +231,11 @@ BEGIN
   DECLARE v_id_estado_detenido INT UNSIGNED;
   DECLARE v_id_estado_pendiente INT UNSIGNED;
   DECLARE v_id_registro_existente INT UNSIGNED;
+  DECLARE v_id_conflicto INT UNSIGNED;
+  DECLARE v_tarea_conflicto VARCHAR(150);
+  DECLARE v_inicio_conflicto DATETIME;
+  DECLARE v_fin_conflicto DATETIME;
+  DECLARE v_mensaje_conflicto VARCHAR(150);
 
   IF p_fecha_inicio IS NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Falta la fecha/hora de inicio';
@@ -326,17 +331,27 @@ BEGIN
 
   -- Ningun otro registro (activo, ya cerrado) del usuario puede tener un
   -- rango de horas que se cruce con este, para no duplicar tiempo trabajado
-  -- entre actividades distintas.
-  IF EXISTS (
-    SELECT 1 FROM registros_tiempo
-    WHERE id_usuario = p_id_usuario
-      AND activo = 1
-      AND duracion_segundos IS NOT NULL
-      AND (v_id_registro_existente IS NULL OR id_registro <> v_id_registro_existente)
-      AND fecha_inicio < p_fecha_fin
-      AND fecha_fin > p_fecha_inicio
-  ) THEN
-    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El rango de horas se superpone con otro registro existente';
+  -- entre actividades distintas. Se identifica el registro en conflicto para
+  -- que el mensaje de error diga con cual se cruza (sino el admin no puede
+  -- distinguir un choque real de un falso positivo al cargar por Excel).
+  SELECT rt.id_registro, t2.nombre, rt.fecha_inicio, rt.fecha_fin
+  INTO v_id_conflicto, v_tarea_conflicto, v_inicio_conflicto, v_fin_conflicto
+  FROM registros_tiempo rt
+  JOIN tareas t2 ON t2.id_tarea = rt.id_tarea
+  WHERE rt.id_usuario = p_id_usuario
+    AND rt.activo = 1
+    AND rt.duracion_segundos IS NOT NULL
+    AND (v_id_registro_existente IS NULL OR rt.id_registro <> v_id_registro_existente)
+    AND rt.fecha_inicio < p_fecha_fin
+    AND rt.fecha_fin > p_fecha_inicio
+  LIMIT 1;
+
+  IF v_id_conflicto IS NOT NULL THEN
+    SET v_mensaje_conflicto = CONCAT(
+      'El rango se superpone con "', SUBSTRING(v_tarea_conflicto, 1, 50), '" (',
+      DATE_FORMAT(v_inicio_conflicto, '%d/%m %H:%i'), '-', DATE_FORMAT(v_fin_conflicto, '%H:%i'), ')'
+    );
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_mensaje_conflicto;
   END IF;
 
   SELECT id_maestro INTO v_id_estado_detenido
@@ -375,6 +390,11 @@ CREATE PROCEDURE sp_registro_tiempo_editar(
 )
 BEGIN
   DECLARE v_id_usuario_dueno INT UNSIGNED;
+  DECLARE v_id_conflicto INT UNSIGNED;
+  DECLARE v_tarea_conflicto VARCHAR(150);
+  DECLARE v_inicio_conflicto DATETIME;
+  DECLARE v_fin_conflicto DATETIME;
+  DECLARE v_mensaje_conflicto VARCHAR(150);
 
   SELECT rt.id_usuario INTO v_id_usuario_dueno
   FROM registros_tiempo rt
@@ -391,16 +411,26 @@ BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La fecha de fin debe ser posterior a la fecha de inicio';
   END IF;
 
-  IF p_fecha_fin IS NOT NULL AND EXISTS (
-    SELECT 1 FROM registros_tiempo
-    WHERE id_usuario = v_id_usuario_dueno
-      AND activo = 1
-      AND duracion_segundos IS NOT NULL
-      AND id_registro <> p_id_registro
-      AND fecha_inicio < p_fecha_fin
-      AND fecha_fin > p_fecha_inicio
-  ) THEN
-    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El rango de horas se superpone con otro registro existente';
+  IF p_fecha_fin IS NOT NULL THEN
+    SELECT rt.id_registro, t2.nombre, rt.fecha_inicio, rt.fecha_fin
+    INTO v_id_conflicto, v_tarea_conflicto, v_inicio_conflicto, v_fin_conflicto
+    FROM registros_tiempo rt
+    JOIN tareas t2 ON t2.id_tarea = rt.id_tarea
+    WHERE rt.id_usuario = v_id_usuario_dueno
+      AND rt.activo = 1
+      AND rt.duracion_segundos IS NOT NULL
+      AND rt.id_registro <> p_id_registro
+      AND rt.fecha_inicio < p_fecha_fin
+      AND rt.fecha_fin > p_fecha_inicio
+    LIMIT 1;
+
+    IF v_id_conflicto IS NOT NULL THEN
+      SET v_mensaje_conflicto = CONCAT(
+        'El rango se superpone con "', SUBSTRING(v_tarea_conflicto, 1, 50), '" (',
+        DATE_FORMAT(v_inicio_conflicto, '%d/%m %H:%i'), '-', DATE_FORMAT(v_fin_conflicto, '%H:%i'), ')'
+      );
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_mensaje_conflicto;
+    END IF;
   END IF;
 
   UPDATE registros_tiempo
