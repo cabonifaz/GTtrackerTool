@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { ImportarFilaResultado, Proyecto, ReporteDetalleRow, Tarea } from "@/lib/types";
 import { CargandoInline, Spinner } from "@/components/Spinner";
+import BuscadorTarea from "@/components/BuscadorTarea";
 import { fetchJson } from "@/lib/fetchJson";
 
 function aInputDatetimeLocal(fechaMySQL: string) {
@@ -319,19 +320,13 @@ export default function RegistrosClient({
           </select>
 
           {modoTarea === "existente" ? (
-            <select
-              value={idTarea}
-              onChange={(e) => setIdTarea(e.target.value)}
+            <BuscadorTarea
+              tareas={tareasDelProyecto}
+              idSeleccionada={idTarea}
+              onSeleccionar={setIdTarea}
               disabled={!idProyecto}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50"
-            >
-              <option value="">Selecciona una tarea</option>
-              {tareasDelProyecto.map((t) => (
-                <option key={t.id_tarea} value={t.id_tarea}>
-                  {t.nombre}
-                </option>
-              ))}
-            </select>
+              placeholder={idProyecto ? "Escribe para buscar una tarea..." : "Selecciona un proyecto primero"}
+            />
           ) : (
             <input
               value={nombreTareaNueva}

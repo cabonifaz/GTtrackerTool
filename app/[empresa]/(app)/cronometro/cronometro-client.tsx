@@ -5,6 +5,7 @@ import { Feriado, Proyecto, RegistroActivo, Tarea, UltimaTarea } from "@/lib/typ
 import { CargandoInline, Spinner } from "@/components/Spinner";
 import AdSlot from "@/components/AdSlot";
 import Badge from "@/components/Badge";
+import BuscadorTarea from "@/components/BuscadorTarea";
 import Card from "@/components/Card";
 import { CronometroLocal, guardarEstadoLocal } from "@/lib/offline/db";
 import { iniciarLocal, obtenerEstadoLocalActivo, pausarLocal, useSyncStatus } from "@/lib/offline/sync";
@@ -300,19 +301,13 @@ export default function CronometroClient({
             {modoTarea === "existente" ? (
               <div className="space-y-1">
                 <label className="text-sm font-medium">Tarea</label>
-                <select
-                  value={idTarea}
-                  onChange={(e) => setIdTarea(e.target.value)}
+                <BuscadorTarea
+                  tareas={tareasDelProyecto}
+                  idSeleccionada={idTarea}
+                  onSeleccionar={setIdTarea}
                   disabled={!idProyecto}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50"
-                >
-                  <option value="">Selecciona una tarea</option>
-                  {tareasDelProyecto.map((t) => (
-                    <option key={t.id_tarea} value={t.id_tarea}>
-                      {t.nombre}
-                    </option>
-                  ))}
-                </select>
+                  placeholder={idProyecto ? "Escribe para buscar una tarea..." : "Selecciona un proyecto primero"}
+                />
               </div>
             ) : (
               <div className="space-y-1">

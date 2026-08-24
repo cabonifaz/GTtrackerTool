@@ -13,9 +13,18 @@ import {
 } from "@/lib/types";
 import { CargandoInline, Spinner } from "@/components/Spinner";
 import Badge from "@/components/Badge";
+import SelectorTalentosMultiple from "@/components/SelectorTalentosMultiple";
 import { fetchJson } from "@/lib/fetchJson";
 
 type Tab = "clientes" | "proyectos" | "tareas" | "perfiles";
+
+function normalizarBusqueda(valor: string): string {
+  return valor
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim();
+}
 
 function formatearHorasMin(segundos: number) {
   const h = Math.floor(segundos / 3600);
@@ -53,7 +62,7 @@ export default function TareasClient({
 
   // Busqueda de tareas por talento(s), solo Admin -- no se trae la lista
   // completa por defecto (ver comentario en page.tsx), se busca a pedido.
-  const [talentosFiltro, setTalentosFiltro] = useState<Set<number>>(new Set());
+  const [talentosFiltro, setTalentosFiltro] = useState<number[]>([]);
   const [tareasFiltradas, setTareasFiltradas] = useState<Tarea[] | null>(null);
   const [buscandoTareasFiltradas, setBuscandoTareasFiltradas] = useState(false);
 
@@ -61,6 +70,7 @@ export default function TareasClient({
   // cuenta como talento: puede asignarse a si mismo a un proyecto.
   const [talentos] = useState<Usuario[]>(talentosIniciales.filter((u) => u.activo));
   const [panelAbierto, setPanelAbierto] = useState<number | null>(null);
+  const [filtroAsignacion, setFiltroAsignacion] = useState("");
   const [asignadosPorProyecto, setAsignadosPorProyecto] = useState<Record<number, UsuarioAsignado[]>>({});
   const [procesandoAsignacion, setProcesandoAsignacion] = useState<Set<string>>(new Set());
 
@@ -309,20 +319,17 @@ export default function TareasClient({
   }
 
   function alternarTalentoFiltro(idUsuario: number) {
-    setTalentosFiltro((prev) => {
-      const next = new Set(prev);
-      if (next.has(idUsuario)) next.delete(idUsuario);
-      else next.add(idUsuario);
-      return next;
-    });
+    setTalentosFiltro((prev) =>
+      prev.includes(idUsuario) ? prev.filter((id) => id !== idUsuario) : [...prev, idUsuario]
+    );
   }
 
   async function buscarTareasPorTalentos() {
-    if (talentosFiltro.size === 0) return;
+    if (talentosFiltro.length === 0) return;
     setError(null);
     setBuscandoTareasFiltradas(true);
     try {
-      const ids = Array.from(talentosFiltro).join(",");
+      const ids = talentosFiltro.join(",");
       setTareasFiltradas(await fetchJson<Tarea[]>(`/api/tareas/por-talentos?idsUsuario=${ids}`));
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudieron buscar las tareas");
@@ -351,6 +358,7 @@ export default function TareasClient({
       return;
     }
     setPanelAbierto(idProyecto);
+    setFiltroAsignacion("");
     if (!asignadosPorProyecto[idProyecto]) {
       try {
         const asignados = await fetchJson<UsuarioAsignado[]>(
@@ -665,7 +673,24 @@ export default function TareasClient({
                           <p className="text-xs text-gray-400 pt-3">No hay usuarios Talento creados.</p>
                         ) : (
                           <div className="flex flex-col gap-2 pt-3">
-                            {talentos.map((t) => {
+                            {talentos.length > 8 && (
+                              <input
+                                value={filtroAsignacion}
+                                onChange={(e) => setFiltroAsignacion(e.target.value)}
+                                placeholder="Filtrar por nombre o correo..."
+                                className="w-full max-w-sm rounded-md border border-gray-300 px-3 py-1.5 text-xs"
+                              />
+                            )}
+                            {talentos
+                              .filter((t) => {
+                                const q = normalizarBusqueda(filtroAsignacion);
+                                if (!q) return true;
+                                const asignado = asignadosPorProyecto[p.id_proyecto]?.some(
+                                  (a) => a.id_usuario === t.id_usuario
+                                );
+                                return asignado || normalizarBusqueda(`${t.nombres} ${t.apellidos} ${t.email}`).includes(q);
+                              })
+                              .map((t) => {
                               const asignado = asignadosPorProyecto[p.id_proyecto]?.find(
                                 (a) => a.id_usuario === t.id_usuario
                               );
@@ -802,22 +827,19 @@ export default function TareasClient({
                 <div className="space-y-3">
                   <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
                     <p className="text-sm font-medium">Buscar tareas por talento</p>
-                    <div className="flex flex-wrap gap-3">
-                      {talentos.map((u) => (
-                        <label key={u.id_usuario} className="flex items-center gap-1.5 text-sm text-gray-600">
-                          <input
-                            type="checkbox"
-                            checked={talentosFiltro.has(u.id_usuario)}
-                            onChange={() => alternarTalentoFiltro(u.id_usuario)}
-                          />
-                          {u.nombres} {u.apellidos}
-                        </label>
-                      ))}
-                      {talentos.length === 0 && <p className="text-sm text-gray-400">No hay talentos registrados</p>}
-                    </div>
+                    {talentos.length === 0 ? (
+                      <p className="text-sm text-gray-400">No hay talentos registrados</p>
+                    ) : (
+                      <SelectorTalentosMultiple
+                        talentos={talentos}
+                        idsSeleccionados={talentosFiltro}
+                        onAlternar={alternarTalentoFiltro}
+                        todosLosUsuarios={talentos}
+                      />
+                    )}
                     <button
                       onClick={buscarTareasPorTalentos}
-                      disabled={buscandoTareasFiltradas || talentosFiltro.size === 0}
+                      disabled={buscandoTareasFiltradas || talentosFiltro.length === 0}
                       className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
                     >
                       {buscandoTareasFiltradas && <Spinner />}
