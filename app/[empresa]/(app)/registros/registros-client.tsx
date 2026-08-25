@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ImportarFilaResultado, Proyecto, ReporteDetalleRow, Tarea } from "@/lib/types";
 import { CargandoInline, Spinner } from "@/components/Spinner";
 import BuscadorTarea from "@/components/BuscadorTarea";
+import CalendarioRegistros from "@/components/CalendarioRegistros";
 import { fetchJson } from "@/lib/fetchJson";
 
 function aInputDatetimeLocal(fechaMySQL: string) {
@@ -20,7 +21,44 @@ function aFechaMySQL(valorInput: string) {
 }
 
 type ModoTarea = "existente" | "nueva";
-type Vista = "lista" | "manual" | "importar";
+type Vista = "lista" | "calendario" | "manual" | "importar";
+type ModoCalendario = "semana" | "mes";
+
+const MESES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+
+function aFechaYMD(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function sumarDias(d: Date, n: number) {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
+
+function inicioSemana(d: Date) {
+  const r = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  r.setDate(r.getDate() - r.getDay());
+  return r;
+}
+
+// Grilla de mes tipo Google Calendar: arranca en el domingo de la semana
+// que contiene el dia 1, y termina en el sabado de la semana que contiene
+// el ultimo dia del mes (para completar filas de 7).
+function inicioMesGrid(d: Date) {
+  return inicioSemana(new Date(d.getFullYear(), d.getMonth(), 1));
+}
+
+function finMesGrid(d: Date) {
+  const ultimoDiaMes = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  return sumarDias(inicioSemana(ultimoDiaMes), 6);
+}
 
 export default function RegistrosClient({
   idUsuario,
@@ -76,6 +114,62 @@ export default function RegistrosClient({
   const [descargandoPlantilla, setDescargandoPlantilla] = useState(false);
   const [resultadosImport, setResultadosImport] = useState<ImportarFilaResultado[] | null>(null);
   const inputArchivoRef = useRef<HTMLInputElement>(null);
+
+  // Vista calendario (semanal/mensual) -- se carga solo mientras esta pestana
+  // esta activa, no en el resto de la pantalla.
+  const [calModo, setCalModo] = useState<ModoCalendario>("semana");
+  const [calAncla, setCalAncla] = useState(() => new Date());
+  const [calFilas, setCalFilas] = useState<ReporteDetalleRow[]>([]);
+  const [calCargando, setCalCargando] = useState(false);
+
+  const calRango = useMemo(() => {
+    if (calModo === "semana") {
+      const ini = inicioSemana(calAncla);
+      return { inicio: ini, fin: sumarDias(ini, 6) };
+    }
+    return { inicio: inicioMesGrid(calAncla), fin: finMesGrid(calAncla) };
+  }, [calModo, calAncla]);
+
+  const calDias = useMemo(() => {
+    const dias: Date[] = [];
+    let cursor = calRango.inicio;
+    while (cursor.getTime() <= calRango.fin.getTime()) {
+      dias.push(cursor);
+      cursor = sumarDias(cursor, 1);
+    }
+    return dias;
+  }, [calRango]);
+
+  const calTitulo =
+    calModo === "mes"
+      ? `${MESES[calAncla.getMonth()]} ${calAncla.getFullYear()}`
+      : `${aFechaYMD(calRango.inicio)} a ${aFechaYMD(calRango.fin)}`;
+
+  useEffect(() => {
+    if (vista !== "calendario") return;
+    let cancelado = false;
+    setCalCargando(true);
+    setError(null);
+    fetchJson<ReporteDetalleRow[]>(
+      `/api/reportes/detalle?${new URLSearchParams({
+        fechaInicio: aFechaYMD(calRango.inicio),
+        fechaFin: aFechaYMD(calRango.fin),
+        idsUsuario: String(idUsuario),
+      }).toString()}`
+    )
+      .then((data) => {
+        if (!cancelado) setCalFilas(data);
+      })
+      .catch((err) => {
+        if (!cancelado) setError(err instanceof Error ? err.message : "No se pudo cargar el calendario");
+      })
+      .finally(() => {
+        if (!cancelado) setCalCargando(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [vista, calRango, idUsuario]);
 
   async function cargarListas() {
     try {
@@ -258,6 +352,7 @@ export default function RegistrosClient({
         {(
           [
             { id: "lista", label: "Lista" },
+            { id: "calendario", label: "Calendario" },
             { id: "manual", label: "Ingreso manual" },
             { id: "importar", label: "Carga por Excel" },
           ] as { id: Vista; label: string }[]
@@ -275,6 +370,57 @@ export default function RegistrosClient({
           </button>
         ))}
       </div>
+
+      {vista === "calendario" && (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCalAncla((a) => (calModo === "semana" ? sumarDias(a, -7) : new Date(a.getFullYear(), a.getMonth() - 1, 1)))}
+              className="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+              aria-label="Periodo anterior"
+            >
+              ‹
+            </button>
+            <button
+              onClick={() => setCalAncla(new Date())}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+            >
+              Hoy
+            </button>
+            <button
+              onClick={() => setCalAncla((a) => (calModo === "semana" ? sumarDias(a, 7) : new Date(a.getFullYear(), a.getMonth() + 1, 1)))}
+              className="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+              aria-label="Periodo siguiente"
+            >
+              ›
+            </button>
+            <p className="text-sm font-medium capitalize ml-2">{calTitulo}</p>
+          </div>
+          <div className="flex gap-1 rounded-md border border-gray-300 p-0.5">
+            {(["semana", "mes"] as ModoCalendario[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => setCalModo(m)}
+                className={`px-3 py-1 text-sm rounded ${
+                  calModo === m ? "bg-[var(--color-primario)] text-white" : "text-gray-600"
+                }`}
+              >
+                {m === "semana" ? "Semana" : "Mes"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <CalendarioRegistros
+          filas={calFilas}
+          dias={calDias}
+          modo={calModo}
+          mesReferencia={calAncla.getMonth()}
+          cargando={calCargando}
+        />
+      </div>
+      )}
 
       {vista === "manual" && (
       <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-4">
