@@ -73,7 +73,8 @@ export function asignarPerfilTalento(
   idProyecto: number,
   idPerfil: number | null,
   idEmpresaActor: number,
-  modificadoPor: string
+  modificadoPor: string,
+  fechaDesde: string | null = null
 ) {
   return executeProcedure("sp_usuario_proyecto_asignar_perfil", [
     idUsuario,
@@ -81,6 +82,7 @@ export function asignarPerfilTalento(
     idPerfil,
     idEmpresaActor,
     modificadoPor,
+    fechaDesde,
   ]);
 }
 

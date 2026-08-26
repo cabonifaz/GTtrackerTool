@@ -6,7 +6,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const session = await requireAdmin();
   if (session instanceof NextResponse) return session;
 
-  const { idUsuario, idPerfil } = await req.json();
+  const { idUsuario, idPerfil, fechaDesde } = await req.json();
 
   try {
     await asignarPerfilTalento(
@@ -14,7 +14,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       Number(params.id),
       idPerfil ? Number(idPerfil) : null,
       session.user.idEmpresa!,
-      session.user.email ?? ""
+      session.user.email ?? "",
+      fechaDesde || null
     );
     return NextResponse.json({ ok: true });
   } catch (err) {

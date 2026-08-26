@@ -190,13 +190,23 @@ END $$
 -- Cambia el perfil (con tarifa/moneda) de un talento en un proyecto,
 -- versionando el historial (nunca pisa una fila anterior). p_id_perfil
 -- NULL quita el perfil asignado (deja al talento sin tarifa).
+--
+-- p_fecha_desde es opcional y solo se respeta cuando es la PRIMERA vez que
+-- se le asigna un perfil a este talento en este proyecto (no hay historial
+-- previo): permite dejar la tarifa vigente desde el inicio del proyecto o
+-- del mes al configurar costos por primera vez, en vez de que quede vigente
+-- recien desde hoy y las horas ya trabajadas queden "sin tarifa" en el
+-- reporte de costos. Si ya existe un perfil vigente y se cambia, siempre
+-- queda vigente desde hoy (nunca se reescribe retroactivamente un costo
+-- que ya pudo haberse reportado/facturado).
 DROP PROCEDURE IF EXISTS sp_usuario_proyecto_asignar_perfil $$
 CREATE PROCEDURE sp_usuario_proyecto_asignar_perfil(
   IN p_id_usuario       INT UNSIGNED,
   IN p_id_proyecto      INT UNSIGNED,
   IN p_id_perfil        INT UNSIGNED,
   IN p_id_empresa_actor INT UNSIGNED,
-  IN p_modificado_por   VARCHAR(150)
+  IN p_modificado_por   VARCHAR(150),
+  IN p_fecha_desde      DATE
 )
 BEGIN
   DECLARE v_id_usuario_proyecto INT UNSIGNED;
@@ -258,8 +268,11 @@ BEGIN
       END IF;
     END IF;
   ELSEIF p_id_perfil IS NOT NULL THEN
+    IF p_fecha_desde IS NOT NULL AND p_fecha_desde > CURDATE() THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La fecha de vigencia no puede ser futura';
+    END IF;
     INSERT INTO usuarios_proyectos_perfiles (id_usuario_proyecto, id_perfil, fecha_desde, creado_por)
-    VALUES (v_id_usuario_proyecto, p_id_perfil, CURDATE(), p_modificado_por);
+    VALUES (v_id_usuario_proyecto, p_id_perfil, COALESCE(p_fecha_desde, CURDATE()), p_modificado_por);
   END IF;
 END $$
 

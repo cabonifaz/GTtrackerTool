@@ -26,6 +26,13 @@ function normalizarBusqueda(valor: string): string {
     .trim();
 }
 
+function aFechaYMD(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function formatearHorasMin(segundos: number) {
   const h = Math.floor(segundos / 3600);
   const m = Math.floor((segundos % 3600) / 60);
@@ -78,6 +85,16 @@ export default function TareasClient({
   const [paisesCalendario] = useState<MaestroItem[]>(paisesCalendarioIniciales);
   const [guardandoPaisAsignacion, setGuardandoPaisAsignacion] = useState<string | null>(null);
   const [guardandoPerfilAsignacion, setGuardandoPerfilAsignacion] = useState<string | null>(null);
+  // Al asignar un perfil por PRIMERA vez a un talento (todavia no tiene
+  // ninguno) se puede elegir desde cuando queda vigente la tarifa, para no
+  // dejar "sin tarifa" en el reporte de costos las horas ya trabajadas este
+  // mes cuando se configuran costos por primera vez. En un cambio de perfil
+  // existente siempre queda vigente desde hoy, sin este paso extra.
+  const [pendientePerfil, setPendientePerfil] = useState<{
+    clave: string;
+    idPerfil: string;
+    fechaDesde: string;
+  } | null>(null);
 
   // Perfiles de cobro por cliente (solo Admin)
   const [monedas] = useState<MaestroItem[]>(monedasIniciales);
@@ -454,13 +471,19 @@ export default function TareasClient({
     setGuardandoPaisAsignacion(null);
   }
 
-  async function cambiarPerfilAsignacion(idProyecto: number, idUsuario: number, idPerfil: string) {
+  async function cambiarPerfilAsignacion(
+    idProyecto: number,
+    idUsuario: number,
+    idPerfil: string,
+    fechaDesde: string | null = null
+  ) {
     const clave = `${idProyecto}:${idUsuario}`;
     setGuardandoPerfilAsignacion(clave);
+    setPendientePerfil(null);
     await fetch(`/api/proyectos/${idProyecto}/asignaciones/perfil`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idUsuario, idPerfil: idPerfil || null }),
+      body: JSON.stringify({ idUsuario, idPerfil: idPerfil || null, fechaDesde }),
     });
     const perfilSeleccionado = perfiles.find((pf) => String(pf.id_perfil) === idPerfil);
     setAsignadosPorProyecto((prev) => {
@@ -743,13 +766,62 @@ export default function TareasClient({
                                         </span>
                                       );
                                     }
+                                    if (pendientePerfil?.clave === clave) {
+                                      return (
+                                        <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-primario)] bg-white px-1.5 py-1">
+                                          <span className="text-xs text-gray-500">Vigente desde</span>
+                                          <input
+                                            type="date"
+                                            value={pendientePerfil.fechaDesde}
+                                            max={aFechaYMD(new Date())}
+                                            onChange={(e) =>
+                                              setPendientePerfil((prev) =>
+                                                prev ? { ...prev, fechaDesde: e.target.value } : prev
+                                              )
+                                            }
+                                            className="rounded-md border border-gray-300 px-1.5 py-0.5 text-xs"
+                                          />
+                                          <button
+                                            onClick={() =>
+                                              cambiarPerfilAsignacion(
+                                                p.id_proyecto,
+                                                t.id_usuario,
+                                                pendientePerfil.idPerfil,
+                                                pendientePerfil.fechaDesde
+                                              )
+                                            }
+                                            disabled={guardandoPerfil || !pendientePerfil.fechaDesde}
+                                            className="text-[var(--color-primario)] underline disabled:opacity-50"
+                                          >
+                                            {guardandoPerfil && <Spinner className="h-3 w-3" />}
+                                            Confirmar
+                                          </button>
+                                          <button
+                                            onClick={() => setPendientePerfil(null)}
+                                            className="text-gray-500 underline"
+                                          >
+                                            Cancelar
+                                          </button>
+                                        </span>
+                                      );
+                                    }
                                     return (
                                       <span className="inline-flex items-center gap-1.5">
                                         <select
                                           value={asignado.id_perfil ?? ""}
-                                          onChange={(e) =>
-                                            cambiarPerfilAsignacion(p.id_proyecto, t.id_usuario, e.target.value)
-                                          }
+                                          onChange={(e) => {
+                                            if (asignado.id_perfil === null && e.target.value) {
+                                              // Primera vez que se le asigna un perfil a este talento:
+                                              // preguntar desde cuando queda vigente en vez de asumir hoy.
+                                              setPendientePerfil({
+                                                clave,
+                                                idPerfil: e.target.value,
+                                                fechaDesde: aFechaYMD(new Date()),
+                                              });
+                                              return;
+                                            }
+                                            cambiarPerfilAsignacion(p.id_proyecto, t.id_usuario, e.target.value);
+                                          }}
                                           disabled={guardandoPerfil}
                                           className="rounded-md border border-gray-300 px-2 py-1 text-xs disabled:opacity-50"
                                         >
