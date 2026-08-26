@@ -15,6 +15,7 @@ import {
 import { CargandoInline, Spinner } from "@/components/Spinner";
 import SelectorTalentosMultiple from "@/components/SelectorTalentosMultiple";
 import { fetchJson } from "@/lib/fetchJson";
+import { formatearMoneda } from "@/lib/format";
 
 function formatearHorasMin(segundos: number) {
   const h = Math.floor(segundos / 3600);
@@ -685,9 +686,7 @@ export default function ReportesClient({
                         )}
                       </td>
                       <td className="px-4 py-2 text-right font-medium">
-                        {f.moneda
-                          ? `${Number(f.costo_total).toFixed(2)} ${f.codigo_moneda}`
-                          : "-"}
+                        {f.moneda ? `${formatearMoneda(f.costo_total)} ${f.codigo_moneda}` : "-"}
                       </td>
                     </tr>
                   ))}
@@ -940,7 +939,7 @@ export default function ReportesClient({
                         </td>
                         <td className="px-4 py-2 text-right">{m.horas_planificadas.toFixed(2)}</td>
                         <td className="px-4 py-2 text-right">
-                          {m.codigo_moneda ? `${m.ingreso_planificado.toFixed(2)} ${m.codigo_moneda}` : "-"}
+                          {m.codigo_moneda ? `${formatearMoneda(m.ingreso_planificado)} ${m.codigo_moneda}` : "-"}
                         </td>
                         <td className="px-4 py-2 text-right">
                           {m.horas_reales === null ? "-" : m.horas_reales.toFixed(2)}
@@ -948,7 +947,7 @@ export default function ReportesClient({
                         <td className="px-4 py-2 text-right">
                           {m.ingreso_real === null
                             ? "-"
-                            : `${m.ingreso_real.toFixed(2)} ${m.codigo_moneda}`}
+                            : `${formatearMoneda(m.ingreso_real)} ${m.codigo_moneda}`}
                         </td>
                         <td
                           className={`px-4 py-2 text-right ${
@@ -972,7 +971,7 @@ export default function ReportesClient({
                         >
                           {variacionIngreso === null
                             ? "-"
-                            : `${variacionIngreso.toFixed(2)} ${m.codigo_moneda}`}
+                            : `${formatearMoneda(variacionIngreso)} ${m.codigo_moneda}`}
                         </td>
                       </tr>
                     );

@@ -15,6 +15,7 @@ import { CargandoInline, Spinner } from "@/components/Spinner";
 import Badge from "@/components/Badge";
 import SelectorTalentosMultiple from "@/components/SelectorTalentosMultiple";
 import { fetchJson } from "@/lib/fetchJson";
+import { formatearMoneda } from "@/lib/format";
 
 type Tab = "clientes" | "proyectos" | "tareas" | "perfiles";
 
@@ -829,14 +830,14 @@ export default function TareasClient({
                                           {perfilesCliente.map((pf) => (
                                             <option key={pf.id_perfil} value={pf.id_perfil}>
                                               {pf.nombre}
-                                              {pf.tarifa !== null ? ` — ${pf.tarifa} ${pf.codigo_moneda}/h` : ""}
+                                              {pf.tarifa !== null ? ` — ${formatearMoneda(pf.tarifa)} ${pf.codigo_moneda}/h` : ""}
                                             </option>
                                           ))}
                                         </select>
                                         {guardandoPerfil && <Spinner className="h-3 w-3" />}
                                         {asignado.tarifa !== null && (
                                           <span className="text-xs text-gray-400">
-                                            {asignado.tarifa} {asignado.codigo_moneda}/h
+                                            {formatearMoneda(asignado.tarifa)} {asignado.codigo_moneda}/h
                                           </span>
                                         )}
                                       </span>
@@ -1112,7 +1113,7 @@ export default function TareasClient({
                       ) : (
                         <span className="inline-flex items-center gap-3">
                           <span className="text-gray-500">
-                            {pf.tarifa !== null ? `${pf.tarifa} ${pf.codigo_moneda}/h` : "Sin tarifa"}
+                            {pf.tarifa !== null ? `${formatearMoneda(pf.tarifa)} ${pf.codigo_moneda}/h` : "Sin tarifa"}
                           </span>
                           <button
                             onClick={() => empezarEdicionTarifa(pf)}

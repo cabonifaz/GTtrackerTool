@@ -6,6 +6,7 @@ import { CodigoTipoPlanEmpresa, Empresa, MaestroItem, PagoEmpresa, Usuario } fro
 import { Spinner } from "@/components/Spinner";
 import TenantLogo from "@/components/TenantLogo";
 import { fetchJson } from "@/lib/fetchJson";
+import { formatearMoneda } from "@/lib/format";
 
 function CamposPlan({
   tiposPlan,
@@ -105,7 +106,7 @@ function EtiquetaPlan({ emp }: { emp: Empresa }) {
     <span className="flex items-center gap-2 flex-wrap">
       <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
         {emp.codigo_tipo_plan === "PAGO_USUARIO"
-          ? `Pago por usuario · ${usuarios} · ${emp.tarifa_por_usuario} ${emp.codigo_moneda ?? ""}/usuario`
+          ? `Pago por usuario · ${usuarios} · ${formatearMoneda(emp.tarifa_por_usuario ?? 0)} ${emp.codigo_moneda ?? ""}/usuario`
           : `Gratis con publicidad · ${usuarios}`}
       </span>
       {emp.publicidad_activa === 1 && (
@@ -662,7 +663,7 @@ export default function PlataformaClient({
                           <span className="font-medium">{pago.fecha_pago}</span>
                           <span className="text-gray-500">
                             {" "}
-                            · {pago.monto} {pago.codigo_moneda}
+                            · {formatearMoneda(pago.monto)} {pago.codigo_moneda}
                           </span>
                           {pago.periodo_desde && pago.periodo_hasta && (
                             <span className="text-gray-400">
