@@ -160,23 +160,68 @@ export default function ReportesClient({
     buscar(nueva);
   }
 
-  async function exportar() {
+  // Dispara la descarga de un .xlsx ya generado por el server -- comun a
+  // todas las exportaciones de Reportes, cada una solo arma su URL.
+  async function descargarExcel(url: string, nombreArchivo: string) {
     setExportando(true);
     setError(null);
-    const res = await fetch(`/api/reportes/exportar?${queryString()}`);
+    const res = await fetch(url);
     if (!res.ok) {
       setError((await res.json()).error ?? "No se pudo exportar el reporte");
       setExportando(false);
       return;
     }
     const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
+    const objectUrl = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = `horas_${fechaInicio}_${fechaFin}.xlsx`;
+    a.href = objectUrl;
+    a.download = nombreArchivo;
     a.click();
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(objectUrl);
     setExportando(false);
+  }
+
+  function exportar() {
+    const endpoint = vista === "detalle" ? "/api/reportes/exportar" : "/api/reportes/por-tarea/exportar";
+    const sufijo = vista === "detalle" ? "" : "_por_tarea";
+    descargarExcel(`${endpoint}?${queryString()}`, `horas${sufijo}_${fechaInicio}_${fechaFin}.xlsx`);
+  }
+
+  function exportarCostos() {
+    if (!costoIdProyecto) return;
+    const params = new URLSearchParams({ idProyecto: costoIdProyecto, anio: String(costoAnio), mes: String(costoMes) });
+    descargarExcel(`/api/reportes/costos/exportar?${params.toString()}`, `costos_${costoAnio}_${costoMes}.xlsx`);
+  }
+
+  function exportarResumen() {
+    if (!resumenIdProyecto) return;
+    const params = new URLSearchParams({
+      idProyecto: resumenIdProyecto,
+      anio: String(resumenAnio),
+      mes: String(resumenMes),
+    });
+    descargarExcel(
+      `/api/reportes/resumen/exportar?${params.toString()}`,
+      `resumen_avance_${resumenAnio}_${resumenMes}.xlsx`
+    );
+  }
+
+  function exportarProyeccion() {
+    if (!proyeccionIdCliente) return;
+    const params = new URLSearchParams({
+      idCliente: proyeccionIdCliente,
+      mesesAtras: String(proyeccionMesesAtras),
+      mesesAdelante: String(proyeccionMesesAdelante),
+    });
+    descargarExcel(`/api/reportes/proyeccion/exportar?${params.toString()}`, `proyeccion_${proyeccionIdCliente}.xlsx`);
+  }
+
+  function exportarClases() {
+    const params = new URLSearchParams({ fechaInicio: clasesFechaInicio, fechaFin: clasesFechaFin });
+    descargarExcel(
+      `/api/reportes/clases/exportar?${params.toString()}`,
+      `clases_${clasesFechaInicio}_${clasesFechaFin}.xlsx`
+    );
   }
 
   async function buscarCostos() {
@@ -646,6 +691,14 @@ export default function ReportesClient({
               {cargandoCostos && <Spinner />}
               Generar reporte
             </button>
+            <button
+              onClick={exportarCostos}
+              disabled={exportando || !buscoCostos || filasCostos.length === 0}
+              className="inline-flex items-center gap-2 rounded-md border border-gray-300 text-sm font-medium px-4 py-2 disabled:opacity-50"
+            >
+              {exportando && <Spinner />}
+              Exportar Excel
+            </button>
           </div>
 
           {buscoCostos && !cargandoCostos && filasCostos.length > 0 && (
@@ -760,6 +813,15 @@ export default function ReportesClient({
             >
               {cargandoResumen && <Spinner />}
               Generar resumen
+            </button>
+            <button
+              onClick={exportarResumen}
+              disabled={exportando || !buscoResumen || filasResumen.length === 0}
+              className="inline-flex items-center gap-2 rounded-md border border-gray-300 text-sm font-medium px-4 py-2 disabled:opacity-50"
+              title="Incluye una segunda hoja con los registros de tiempo de donde sale el resumen"
+            >
+              {exportando && <Spinner />}
+              Exportar Excel (con fuente)
             </button>
           </div>
 
@@ -897,6 +959,14 @@ export default function ReportesClient({
               {cargandoProyeccion && <Spinner />}
               Generar proyeccion
             </button>
+            <button
+              onClick={exportarProyeccion}
+              disabled={exportando || !buscoProyeccion || filasProyeccion.length === 0}
+              className="inline-flex items-center gap-2 rounded-md border border-gray-300 text-sm font-medium px-4 py-2 disabled:opacity-50"
+            >
+              {exportando && <Spinner />}
+              Exportar Excel
+            </button>
           </div>
 
           {buscoProyeccion && !cargandoProyeccion && (
@@ -1025,6 +1095,14 @@ export default function ReportesClient({
             >
               {cargandoClases && <Spinner />}
               Generar reporte
+            </button>
+            <button
+              onClick={exportarClases}
+              disabled={exportando || !buscoClases}
+              className="inline-flex items-center gap-2 rounded-md border border-gray-300 text-sm font-medium px-4 py-2 disabled:opacity-50"
+            >
+              {exportando && <Spinner />}
+              Exportar Excel
             </button>
           </div>
 

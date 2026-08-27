@@ -66,6 +66,25 @@ export function reporteResumenAvance(idProyecto: number, anio: number, mes: numb
   return executeProcedure<ResumenAvanceRow>("sp_reporte_resumen_avance", [idProyecto, anio, mes, idEmpresaActor]);
 }
 
+export interface ResumenAvanceDetalleRow {
+  id_registro: number;
+  colaborador: string;
+  tarea: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  horas: number;
+  descripcion: string | null;
+}
+
+export function reporteResumenAvanceDetalle(idProyecto: number, anio: number, mes: number, idEmpresaActor: number) {
+  return executeProcedure<ResumenAvanceDetalleRow>("sp_reporte_resumen_avance_detalle", [
+    idProyecto,
+    anio,
+    mes,
+    idEmpresaActor,
+  ]);
+}
+
 export function reporteProyeccionCliente(
   idCliente: number,
   mesesAtras: number,

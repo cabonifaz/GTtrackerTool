@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession, handleApiError } from "@/lib/apiHelpers";
-import { reporteHorasDetalle } from "@/lib/services/reporteService";
+import { reporteTiempoPorTarea } from "@/lib/services/reporteService";
 import { generarExcel, respuestaExcel } from "@/lib/excelExport";
 
 export async function GET(req: NextRequest) {
@@ -18,33 +18,31 @@ export async function GET(req: NextRequest) {
 
   const idsUsuario =
     session.user.rol === "ADMIN"
-      ? (idsUsuarioParam ?? "")
-          .split(",")
-          .filter(Boolean)
-          .map(Number)
+      ? (idsUsuarioParam ?? "").split(",").filter(Boolean).map(Number)
       : [session.user.idUsuario];
 
   try {
-    const detalle = await reporteHorasDetalle(idsUsuario, fechaInicio, fechaFin, session.user.idEmpresa!);
+    const filas = await reporteTiempoPorTarea(idsUsuario, fechaInicio, fechaFin, session.user.idEmpresa!);
 
     const buffer = await generarExcel([
       {
-        nombre: "Horas",
+        nombre: "Por tarea",
         columnas: [
           { header: "Colaborador", key: "colaborador", width: 25 },
           { header: "Cliente", key: "cliente", width: 20 },
           { header: "Proyecto", key: "proyecto", width: 20 },
           { header: "Tarea", key: "tarea", width: 25 },
-          { header: "Inicio", key: "fecha_inicio", width: 20 },
-          { header: "Fin", key: "fecha_fin", width: 20 },
+          { header: "Estado", key: "estado_tarea", width: 15 },
+          { header: "Sesiones", key: "sesiones", width: 10 },
           { header: "Horas", key: "horas", width: 10, numFmt: "0.00" },
-          { header: "Descripcion", key: "descripcion", width: 30 },
+          { header: "Primer inicio", key: "primer_inicio", width: 20 },
+          { header: "Ultimo fin", key: "ultimo_fin", width: 20 },
         ],
-        filas: detalle.map((fila) => ({ ...fila, horas: Number(fila.horas) })),
+        filas: filas.map((f) => ({ ...f, horas: Number(f.horas) })),
       },
     ]);
 
-    return respuestaExcel(buffer, `horas_${fechaInicio}_${fechaFin}.xlsx`);
+    return respuestaExcel(buffer, `horas_por_tarea_${fechaInicio}_${fechaFin}.xlsx`);
   } catch (err) {
     return handleApiError(err);
   }
