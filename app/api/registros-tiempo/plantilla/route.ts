@@ -29,10 +29,27 @@ export async function GET() {
     plantilla.getColumn("hora_inicio").numFmt = "hh:mm";
     plantilla.getColumn("hora_fin").numFmt = "hh:mm";
 
+    // Fila de ejemplo directo en la hoja que se llena, en gris e italica
+    // para que se note que hay que reemplazarla/borrarla -- no solo queda
+    // el ejemplo escondido en la hoja de Instrucciones.
+    const filaEjemplo = plantilla.addRow({
+      proyecto: "Sitio Web",
+      tarea: "Maquetar home",
+      fecha_inicio: "2026-08-20",
+      hora_inicio: "09:00",
+      fecha_fin: "2026-08-20",
+      hora_fin: "11:30",
+      descripcion: "Avance de la home (ejemplo -- borra esta fila)",
+    });
+    filaEjemplo.font = { italic: true, color: { argb: "FF9CA3AF" } };
+
     const instrucciones = workbook.addWorksheet("Instrucciones");
     instrucciones.columns = [{ width: 90 }];
     instrucciones.addRows([
       ["Como llenar la plantilla"],
+      [""],
+      ["La hoja 'Plantilla' ya trae una fila de ejemplo en gris -- borrala y agrega tus propias filas."],
+      ["El importador tambien acepta el mismo formato en un archivo .csv, no hace falta que sea .xlsx."],
       [""],
       ["Proyecto: el nombre exacto de uno de tus proyectos asignados."],
       [
@@ -49,8 +66,8 @@ export async function GET() {
       ["No borres la fila de encabezados de la hoja 'Plantilla'. Puedes agregar tantas filas como necesites."],
     ]);
     instrucciones.getRow(1).font = { bold: true, size: 13 };
-    instrucciones.getRow(9).font = { italic: true };
-    instrucciones.getRow(10).font = { bold: true };
+    instrucciones.getRow(12).font = { italic: true };
+    instrucciones.getRow(13).font = { bold: true };
 
     const buffer = await workbook.xlsx.writeBuffer();
 

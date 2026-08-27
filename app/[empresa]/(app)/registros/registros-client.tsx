@@ -314,6 +314,19 @@ export default function RegistrosClient({
     setDescargandoPlantilla(false);
   }
 
+  function descargarPlantillaCsv() {
+    const encabezados = ["Proyecto", "Tarea", "Fecha Inicio", "Hora Inicio", "Fecha Fin", "Hora Fin", "Descripcion"];
+    const ejemplo = ["Sitio Web", "Maquetar home", "2026-08-20", "09:00", "2026-08-20", "11:30", "Avance de la home"];
+    const csv = [encabezados, ejemplo].map((fila) => fila.map((v) => `"${v.replace(/"/g, '""')}"`).join(",")).join("\r\n");
+    const blob = new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "plantilla_registros_tiempo.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function importarExcel() {
     const archivo = inputArchivoRef.current?.files?.[0];
     if (!archivo) return;
@@ -532,21 +545,65 @@ export default function RegistrosClient({
 
       {vista === "importar" && (
       <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
-        <p className="text-sm font-medium">Importar desde Excel</p>
+        <p className="text-sm font-medium">Importar desde Excel o CSV</p>
         <p className="text-xs text-gray-500">
-          Descarga la plantilla, llenala con tus registros y volve a subirla. Tambien sirve un
-          &quot;Exportar Excel&quot; de Reportes reeditado (columnas Proyecto, Tarea, Inicio, Fin, Descripcion).
+          Descarga la plantilla, llenala con tus registros y volve a subirla (acepta .xlsx y .csv). Tambien
+          sirve un &quot;Exportar Excel&quot; de Reportes reeditado (columnas Proyecto, Tarea, Inicio, Fin,
+          Descripcion).
         </p>
-        <button
-          onClick={descargarPlantilla}
-          disabled={descargandoPlantilla}
-          className="inline-flex items-center gap-2 rounded-md border border-gray-300 text-sm font-medium px-4 py-2 disabled:opacity-50"
-        >
-          {descargandoPlantilla && <Spinner />}
-          Descargar plantilla
-        </button>
+
+        <div className="rounded-md border border-gray-200 bg-gray-50 p-3 space-y-1.5">
+          <p className="text-xs font-medium text-gray-700">Modelo de columnas (con un ejemplo):</p>
+          <div className="overflow-x-auto">
+            <table className="text-xs border-collapse">
+              <thead>
+                <tr className="text-gray-500">
+                  {["Proyecto", "Tarea", "Fecha Inicio", "Hora Inicio", "Fecha Fin", "Hora Fin", "Descripcion"].map(
+                    (h) => (
+                      <th key={h} className="border border-gray-200 bg-white px-2 py-1 font-medium text-left">
+                        {h}
+                      </th>
+                    )
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="text-gray-600 font-mono">
+                  {["Sitio Web", "Maquetar home", "2026-08-20", "09:00", "2026-08-20", "11:30", "Avance de la home"].map(
+                    (v, i) => (
+                      <td key={i} className="border border-gray-200 px-2 py-1 whitespace-nowrap">
+                        {v}
+                      </td>
+                    )
+                  )}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-gray-400">
+            Fechas en AAAA-MM-DD, horas en HH:MM (24h). Si la Tarea no existe en ese Proyecto, se crea sola.
+            Descripcion es opcional.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={descargarPlantilla}
+            disabled={descargandoPlantilla}
+            className="inline-flex items-center gap-2 rounded-md border border-gray-300 text-sm font-medium px-4 py-2 disabled:opacity-50"
+          >
+            {descargandoPlantilla && <Spinner />}
+            Descargar plantilla Excel
+          </button>
+          <button
+            onClick={descargarPlantillaCsv}
+            className="inline-flex items-center gap-2 rounded-md border border-gray-300 text-sm font-medium px-4 py-2"
+          >
+            Descargar plantilla CSV
+          </button>
+        </div>
         <div className="flex items-center gap-2">
-          <input ref={inputArchivoRef} type="file" accept=".xlsx" className="text-sm" />
+          <input ref={inputArchivoRef} type="file" accept=".xlsx,.csv" className="text-sm" />
           <button
             onClick={importarExcel}
             disabled={importando}

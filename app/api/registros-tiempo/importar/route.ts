@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
+import { Readable } from "stream";
 import { requireSession } from "@/lib/apiHelpers";
 import { BusinessError } from "@/lib/db";
 import { listarProyectos } from "@/lib/services/proyectoService";
@@ -127,13 +128,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Falta el archivo a importar" }, { status: 400 });
   }
 
+  const nombreArchivo = archivo instanceof File ? archivo.name : "";
+  const esCsv = nombreArchivo.toLowerCase().endsWith(".csv") || archivo.type === "text/csv";
+
   const buffer = Buffer.from(await archivo.arrayBuffer());
   const workbook = new ExcelJS.Workbook();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- desajuste de tipos entre exceljs y la version de @types/node instalada
-  await workbook.xlsx.load(buffer as any);
-  const sheet = workbook.worksheets[0];
+  let sheet: ExcelJS.Worksheet | undefined;
+  if (esCsv) {
+    // Se fuerza a que cada celda quede como texto plano (sin la
+    // auto-deteccion de fechas/numeros de exceljs, que interpreta fechas
+    // en hora local y puede convertir de mas): asi el CSV pasa por el
+    // mismo parseo de texto que ya usan las columnas separadas de Excel.
+    sheet = await workbook.csv.read(Readable.from(buffer), {
+      map: (datum: string) => (datum === "" ? null : datum),
+    });
+  } else {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- desajuste de tipos entre exceljs y la version de @types/node instalada
+    await workbook.xlsx.load(buffer as any);
+    sheet = workbook.worksheets[0];
+  }
   if (!sheet) {
-    return NextResponse.json({ error: "El archivo no tiene hojas" }, { status: 400 });
+    return NextResponse.json({ error: "El archivo no tiene datos" }, { status: 400 });
   }
 
   const columnas = new Map<string, number>();
