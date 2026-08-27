@@ -1,4 +1,4 @@
-export type CodigoRol = "SUPER_ADMIN" | "ADMIN" | "TALENTO";
+export type CodigoRol = "SUPER_ADMIN" | "ADMIN" | "GESTOR_SERVICIO" | "TALENTO";
 
 export type CodigoTipoPlanEmpresa = "PAGO_USUARIO" | "GRATIS_PUBLICIDAD";
 
@@ -87,6 +87,11 @@ export interface Cliente {
   nombre: string;
   activo: number;
   fecha_creacion: string;
+}
+
+export interface MiClienteGestionado {
+  id_cliente: number;
+  cliente: string;
 }
 
 export type CodigoTipoProyecto = "CRONOMETRO" | "CLASES" | "ACTIVIDADES_EXCEL";
@@ -201,6 +206,16 @@ export interface ActividadProyecto {
   descripcion: string;
   orden: number;
   fecha_creacion: string;
+}
+
+export interface AlertaActividadTalento {
+  id_asignacion: number;
+  proyecto: string;
+  cliente: string | null;
+  nombre_iniciativa: string | null;
+  periodo_hasta: string;
+  actividades_cargadas: number;
+  dias_restantes: number;
 }
 
 export interface ImportarAsignacionResultado {

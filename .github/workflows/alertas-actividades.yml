@@ -1,0 +1,24 @@
+name: Alertas de vencimiento de Actividades
+
+# Corre cada 30 minutos y pega al endpoint protegido de la app, que decide
+# internamente (con la hora del servidor de base de datos) si corresponde
+# mandar alguna alerta -- por eso no hace falta que este cron este alineado
+# exactamente a las 9am/11am/etc, alcanza con pasar por ahi seguido.
+#
+# Requiere estos secrets en Settings > Secrets and variables > Actions:
+#   APP_URL      -- ej. https://tuapp.up.railway.app (sin barra final)
+#   CRON_SECRET  -- mismo valor que la variable de entorno CRON_SECRET de la app
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  disparar-alertas:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Llamar al endpoint de alertas
+        run: |
+          curl --fail --silent --show-error \
+            -X POST "${{ secrets.APP_URL }}/api/cron/alertas-actividades" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}"

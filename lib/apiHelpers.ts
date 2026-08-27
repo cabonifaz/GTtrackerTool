@@ -20,6 +20,19 @@ export async function requireAdmin(): Promise<Session | NextResponse> {
   return session;
 }
 
+// Para pantallas donde un Gestor de Servicio tiene los mismos permisos
+// que un Admin, pero acotados a sus clientes asignados (el scope por
+// cliente lo aplica cada SP internamente via p_codigo_rol_actor, no este
+// helper -- aca solo se decide si puede ENTRAR a la ruta).
+export async function requireAdminOGestor(): Promise<Session | NextResponse> {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
+  if (session.user.rol !== "ADMIN" && session.user.rol !== "GESTOR_SERVICIO") {
+    return NextResponse.json({ error: "Requiere rol Admin o Gestor de Servicio" }, { status: 403 });
+  }
+  return session;
+}
+
 export async function requireSuperAdmin(): Promise<Session | NextResponse> {
   const session = await requireSession();
   if (session instanceof NextResponse) return session;

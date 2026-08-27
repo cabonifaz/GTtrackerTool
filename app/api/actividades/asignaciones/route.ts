@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin, requireSession, handleApiError } from "@/lib/apiHelpers";
+import { requireAdminOGestor, requireSession, handleApiError } from "@/lib/apiHelpers";
 import { listarAsignaciones, upsertAsignacion } from "@/lib/services/actividadService";
 import { crearUsuario, listarUsuarios } from "@/lib/services/usuarioService";
 import { obtenerEmpresaPorSlug } from "@/lib/services/empresaService";
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
 // el mismo talento+periodo actualiza la fila en vez de duplicarla (es
 // el mismo sp_proyecto_asignacion_upsert que usa la carga masiva).
 export async function POST(req: NextRequest) {
-  const session = await requireAdmin();
+  const session = await requireAdminOGestor();
   if (session instanceof NextResponse) return session;
 
   const {
@@ -108,6 +108,8 @@ export async function POST(req: NextRequest) {
       periodoHasta,
       periodoReferencia || null,
       liderTecnico || null,
+      session.user.idUsuario,
+      session.user.rol,
       session.user.idEmpresa!,
       session.user.email ?? ""
     );

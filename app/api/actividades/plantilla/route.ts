@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import ExcelJS from "exceljs";
-import { requireAdmin, handleApiError } from "@/lib/apiHelpers";
+import { requireAdminOGestor, handleApiError } from "@/lib/apiHelpers";
 
 // Plantilla para la carga masiva de asignaciones (proyectos tipo
 // Actividades por Excel). El proyecto se elige una sola vez en la
@@ -9,7 +9,7 @@ import { requireAdmin, handleApiError } from "@/lib/apiHelpers";
 // Detalle de Entregable se deja de ejemplo pero se ignora al importar:
 // el talento la completa despues, dentro de la app.
 export async function GET() {
-  const session = await requireAdmin();
+  const session = await requireAdminOGestor();
   if (session instanceof NextResponse) return session;
 
   try {

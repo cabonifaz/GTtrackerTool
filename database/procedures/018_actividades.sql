@@ -2,6 +2,12 @@
 -- Stored Procedures: proyectos tipo Actividades por Excel (asignaciones
 -- cargadas masivamente + actividades del talento sobre cada una).
 -- Archivo propio, sin tocar tareas/registros_tiempo/cronometro.
+--
+-- El Gestor de Servicio tiene los mismos permisos que un Admin en todo
+-- este archivo, pero acotados a los clientes que tiene asignados en
+-- `clientes_gestores` (ver 019_gestores_servicio.sql). Si un proyecto no
+-- tiene cliente (id_cliente NULL), un Gestor nunca lo puede gestionar --
+-- solo Admin.
 -- =====================================================================
 USE trackerTime;
 
@@ -19,14 +25,17 @@ CREATE PROCEDURE sp_proyecto_asignacion_upsert(
   IN p_periodo_hasta    DATE,
   IN p_periodo_referencia VARCHAR(50),
   IN p_lider_tecnico    VARCHAR(150),
+  IN p_id_usuario_actor INT UNSIGNED,
+  IN p_codigo_rol_actor VARCHAR(50),
   IN p_id_empresa_actor INT UNSIGNED,
   IN p_creado_por       VARCHAR(150)
 )
 BEGIN
   DECLARE v_codigo_tipo VARCHAR(50);
+  DECLARE v_id_cliente INT UNSIGNED;
   DECLARE v_id_estado_pendiente INT UNSIGNED;
 
-  SELECT m.codigo INTO v_codigo_tipo
+  SELECT m.codigo, p.id_cliente INTO v_codigo_tipo, v_id_cliente
   FROM proyectos p
   JOIN maestro m ON m.id_maestro = p.id_tipo_proyecto
   WHERE p.id_proyecto = p_id_proyecto AND p.id_empresa = p_id_empresa_actor AND p.activo = 1;
@@ -37,6 +46,13 @@ BEGIN
 
   IF v_codigo_tipo <> 'ACTIVIDADES_EXCEL' THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El proyecto no es de tipo Actividades por Excel';
+  END IF;
+
+  IF p_codigo_rol_actor = 'GESTOR_SERVICIO' AND NOT EXISTS (
+    SELECT 1 FROM clientes_gestores cg
+    WHERE cg.id_cliente = v_id_cliente AND cg.id_usuario = p_id_usuario_actor AND cg.activo = 1
+  ) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No tienes asignado el cliente de este proyecto';
   END IF;
 
   IF NOT EXISTS (
@@ -80,6 +96,8 @@ END $$
 DROP PROCEDURE IF EXISTS sp_proyecto_asignacion_desactivar $$
 CREATE PROCEDURE sp_proyecto_asignacion_desactivar(
   IN p_id_asignacion    INT UNSIGNED,
+  IN p_id_usuario_actor INT UNSIGNED,
+  IN p_codigo_rol_actor VARCHAR(50),
   IN p_id_empresa_actor INT UNSIGNED,
   IN p_modificado_por   VARCHAR(150)
 )
@@ -88,6 +106,13 @@ BEGIN
     SELECT 1 FROM proyecto_asignaciones a
     JOIN proyectos p ON p.id_proyecto = a.id_proyecto
     WHERE a.id_asignacion = p_id_asignacion AND p.id_empresa = p_id_empresa_actor
+      AND (
+        p_codigo_rol_actor = 'ADMIN'
+        OR (p_codigo_rol_actor = 'GESTOR_SERVICIO' AND EXISTS (
+              SELECT 1 FROM clientes_gestores cg
+              WHERE cg.id_cliente = p.id_cliente AND cg.id_usuario = p_id_usuario_actor AND cg.activo = 1
+            ))
+      )
   ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Asignacion no encontrada';
   END IF;
@@ -98,6 +123,8 @@ END $$
 DROP PROCEDURE IF EXISTS sp_proyecto_asignacion_activar $$
 CREATE PROCEDURE sp_proyecto_asignacion_activar(
   IN p_id_asignacion    INT UNSIGNED,
+  IN p_id_usuario_actor INT UNSIGNED,
+  IN p_codigo_rol_actor VARCHAR(50),
   IN p_id_empresa_actor INT UNSIGNED,
   IN p_modificado_por   VARCHAR(150)
 )
@@ -109,6 +136,13 @@ BEGIN
     SELECT 1 FROM proyecto_asignaciones a
     JOIN proyectos p ON p.id_proyecto = a.id_proyecto
     WHERE a.id_asignacion = p_id_asignacion AND p.id_empresa = p_id_empresa_actor
+      AND (
+        p_codigo_rol_actor = 'ADMIN'
+        OR (p_codigo_rol_actor = 'GESTOR_SERVICIO' AND EXISTS (
+              SELECT 1 FROM clientes_gestores cg
+              WHERE cg.id_cliente = p.id_cliente AND cg.id_usuario = p_id_usuario_actor AND cg.activo = 1
+            ))
+      )
   ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Asignacion no encontrada';
   END IF;
@@ -142,7 +176,14 @@ BEGIN
   JOIN maestro e ON e.id_maestro = a.id_estado
   WHERE pr.id_empresa = p_id_empresa_actor
     AND (p_id_proyecto IS NULL OR a.id_proyecto = p_id_proyecto)
-    AND (p_codigo_rol_actor = 'ADMIN' OR a.id_usuario = p_id_usuario_actor)
+    AND (
+      p_codigo_rol_actor = 'ADMIN'
+      OR (p_codigo_rol_actor = 'GESTOR_SERVICIO' AND EXISTS (
+            SELECT 1 FROM clientes_gestores cg
+            WHERE cg.id_cliente = pr.id_cliente AND cg.id_usuario = p_id_usuario_actor AND cg.activo = 1
+          ))
+      OR a.id_usuario = p_id_usuario_actor
+    )
   ORDER BY a.periodo_desde DESC, recurso;
 END $$
 
@@ -160,11 +201,16 @@ BEGIN
   DECLARE v_id_usuario_dueno INT UNSIGNED;
   DECLARE v_vigente TINYINT;
   DECLARE v_codigo_estado VARCHAR(50);
+  DECLARE v_es_gestor_de_este TINYINT DEFAULT 0;
   DECLARE v_cantidad INT;
   DECLARE v_siguiente_orden INT;
 
-  SELECT a.id_usuario, a.activo, e.codigo
-    INTO v_id_usuario_dueno, v_vigente, v_codigo_estado
+  SELECT a.id_usuario, a.activo, e.codigo,
+         (p_codigo_rol_actor = 'GESTOR_SERVICIO' AND EXISTS (
+            SELECT 1 FROM clientes_gestores cg
+            WHERE cg.id_cliente = p.id_cliente AND cg.id_usuario = p_id_usuario_actor AND cg.activo = 1
+          ))
+    INTO v_id_usuario_dueno, v_vigente, v_codigo_estado, v_es_gestor_de_este
   FROM proyecto_asignaciones a
   JOIN proyectos p ON p.id_proyecto = a.id_proyecto
   JOIN maestro e ON e.id_maestro = a.id_estado
@@ -174,7 +220,7 @@ BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Asignacion no encontrada';
   END IF;
 
-  IF p_codigo_rol_actor <> 'ADMIN' AND v_id_usuario_dueno <> p_id_usuario_actor THEN
+  IF p_codigo_rol_actor <> 'ADMIN' AND NOT v_es_gestor_de_este AND v_id_usuario_dueno <> p_id_usuario_actor THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Esta asignacion no te pertenece';
   END IF;
 
@@ -182,9 +228,10 @@ BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Esta asignacion ya no esta activa';
   END IF;
 
-  -- El Admin puede seguir editando aunque este Enviado/Cerrado (para
-  -- correcciones); un talento solo mientras siga Pendiente.
-  IF p_codigo_rol_actor <> 'ADMIN' AND v_codigo_estado <> 'PENDIENTE' THEN
+  -- El Admin (y el Gestor de ese cliente) pueden seguir editando aunque
+  -- este Enviado/Cerrado (para correcciones); un talento solo mientras
+  -- siga Pendiente.
+  IF p_codigo_rol_actor <> 'ADMIN' AND NOT v_es_gestor_de_este AND v_codigo_estado <> 'PENDIENTE' THEN
     IF v_codigo_estado = 'CERRADO' THEN
       SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El Admin cerro este periodo, ya no se puede editar';
     ELSE
@@ -221,8 +268,14 @@ CREATE PROCEDURE sp_actividad_editar(
 BEGIN
   DECLARE v_id_usuario_dueno INT UNSIGNED;
   DECLARE v_codigo_estado VARCHAR(50);
+  DECLARE v_es_gestor_de_este TINYINT DEFAULT 0;
 
-  SELECT a.id_usuario, e.codigo INTO v_id_usuario_dueno, v_codigo_estado
+  SELECT a.id_usuario, e.codigo,
+         (p_codigo_rol_actor = 'GESTOR_SERVICIO' AND EXISTS (
+            SELECT 1 FROM clientes_gestores cg
+            WHERE cg.id_cliente = p.id_cliente AND cg.id_usuario = p_id_usuario_actor AND cg.activo = 1
+          ))
+    INTO v_id_usuario_dueno, v_codigo_estado, v_es_gestor_de_este
   FROM proyecto_actividades ac
   JOIN proyecto_asignaciones a ON a.id_asignacion = ac.id_asignacion
   JOIN proyectos p ON p.id_proyecto = a.id_proyecto
@@ -233,11 +286,11 @@ BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Actividad no encontrada';
   END IF;
 
-  IF p_codigo_rol_actor <> 'ADMIN' AND v_id_usuario_dueno <> p_id_usuario_actor THEN
+  IF p_codigo_rol_actor <> 'ADMIN' AND NOT v_es_gestor_de_este AND v_id_usuario_dueno <> p_id_usuario_actor THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Esta actividad no te pertenece';
   END IF;
 
-  IF p_codigo_rol_actor <> 'ADMIN' AND v_codigo_estado <> 'PENDIENTE' THEN
+  IF p_codigo_rol_actor <> 'ADMIN' AND NOT v_es_gestor_de_este AND v_codigo_estado <> 'PENDIENTE' THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ya no se puede editar -- el reporte esta enviado o el periodo esta cerrado';
   END IF;
 
@@ -261,8 +314,14 @@ CREATE PROCEDURE sp_actividad_eliminar(
 BEGIN
   DECLARE v_id_usuario_dueno INT UNSIGNED;
   DECLARE v_codigo_estado VARCHAR(50);
+  DECLARE v_es_gestor_de_este TINYINT DEFAULT 0;
 
-  SELECT a.id_usuario, e.codigo INTO v_id_usuario_dueno, v_codigo_estado
+  SELECT a.id_usuario, e.codigo,
+         (p_codigo_rol_actor = 'GESTOR_SERVICIO' AND EXISTS (
+            SELECT 1 FROM clientes_gestores cg
+            WHERE cg.id_cliente = p.id_cliente AND cg.id_usuario = p_id_usuario_actor AND cg.activo = 1
+          ))
+    INTO v_id_usuario_dueno, v_codigo_estado, v_es_gestor_de_este
   FROM proyecto_actividades ac
   JOIN proyecto_asignaciones a ON a.id_asignacion = ac.id_asignacion
   JOIN proyectos p ON p.id_proyecto = a.id_proyecto
@@ -273,11 +332,11 @@ BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Actividad no encontrada';
   END IF;
 
-  IF p_codigo_rol_actor <> 'ADMIN' AND v_id_usuario_dueno <> p_id_usuario_actor THEN
+  IF p_codigo_rol_actor <> 'ADMIN' AND NOT v_es_gestor_de_este AND v_id_usuario_dueno <> p_id_usuario_actor THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Esta actividad no te pertenece';
   END IF;
 
-  IF p_codigo_rol_actor <> 'ADMIN' AND v_codigo_estado <> 'PENDIENTE' THEN
+  IF p_codigo_rol_actor <> 'ADMIN' AND NOT v_es_gestor_de_este AND v_codigo_estado <> 'PENDIENTE' THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ya no se puede eliminar -- el reporte esta enviado o el periodo esta cerrado';
   END IF;
 
@@ -297,7 +356,14 @@ BEGIN
     JOIN proyectos p ON p.id_proyecto = a.id_proyecto
     WHERE a.id_asignacion = p_id_asignacion
       AND p.id_empresa = p_id_empresa_actor
-      AND (p_codigo_rol_actor = 'ADMIN' OR a.id_usuario = p_id_usuario_actor)
+      AND (
+        p_codigo_rol_actor = 'ADMIN'
+        OR a.id_usuario = p_id_usuario_actor
+        OR (p_codigo_rol_actor = 'GESTOR_SERVICIO' AND EXISTS (
+              SELECT 1 FROM clientes_gestores cg
+              WHERE cg.id_cliente = p.id_cliente AND cg.id_usuario = p_id_usuario_actor AND cg.activo = 1
+            ))
+      )
   ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Asignacion no encontrada';
   END IF;
@@ -318,12 +384,19 @@ CREATE PROCEDURE sp_asignacion_finalizar(
   IN p_modificado_por   VARCHAR(150)
 )
 BEGIN
-  -- El talento (o el Admin en su nombre) marca su reporte como enviado:
-  -- deja de poder editar/agregar/eliminar actividades el mismo talento.
+  -- El talento (o el Admin/Gestor en su nombre) marca su reporte como
+  -- enviado: deja de poder editar/agregar/eliminar actividades el mismo
+  -- talento.
   DECLARE v_id_usuario_dueno INT UNSIGNED;
   DECLARE v_codigo_estado VARCHAR(50);
+  DECLARE v_es_gestor_de_este TINYINT DEFAULT 0;
 
-  SELECT a.id_usuario, e.codigo INTO v_id_usuario_dueno, v_codigo_estado
+  SELECT a.id_usuario, e.codigo,
+         (p_codigo_rol_actor = 'GESTOR_SERVICIO' AND EXISTS (
+            SELECT 1 FROM clientes_gestores cg
+            WHERE cg.id_cliente = p.id_cliente AND cg.id_usuario = p_id_usuario_actor AND cg.activo = 1
+          ))
+    INTO v_id_usuario_dueno, v_codigo_estado, v_es_gestor_de_este
   FROM proyecto_asignaciones a
   JOIN proyectos p ON p.id_proyecto = a.id_proyecto
   JOIN maestro e ON e.id_maestro = a.id_estado
@@ -333,7 +406,7 @@ BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Asignacion no encontrada';
   END IF;
 
-  IF p_codigo_rol_actor <> 'ADMIN' AND v_id_usuario_dueno <> p_id_usuario_actor THEN
+  IF p_codigo_rol_actor <> 'ADMIN' AND NOT v_es_gestor_de_este AND v_id_usuario_dueno <> p_id_usuario_actor THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Esta asignacion no te pertenece';
   END IF;
 
@@ -350,16 +423,25 @@ END $$
 DROP PROCEDURE IF EXISTS sp_asignacion_reabrir $$
 CREATE PROCEDURE sp_asignacion_reabrir(
   IN p_id_asignacion    INT UNSIGNED,
+  IN p_id_usuario_actor INT UNSIGNED,
+  IN p_codigo_rol_actor VARCHAR(50),
   IN p_id_empresa_actor INT UNSIGNED,
   IN p_modificado_por   VARCHAR(150)
 )
 BEGIN
-  -- Solo Admin: vuelve una asignacion Enviada o Cerrada a Pendiente, para
-  -- que el talento pueda seguir editando.
+  -- Admin, o Gestor del cliente de este proyecto: vuelve una asignacion
+  -- Enviada o Cerrada a Pendiente, para que el talento pueda seguir editando.
   IF NOT EXISTS (
     SELECT 1 FROM proyecto_asignaciones a
     JOIN proyectos p ON p.id_proyecto = a.id_proyecto
     WHERE a.id_asignacion = p_id_asignacion AND p.id_empresa = p_id_empresa_actor
+      AND (
+        p_codigo_rol_actor = 'ADMIN'
+        OR (p_codigo_rol_actor = 'GESTOR_SERVICIO' AND EXISTS (
+              SELECT 1 FROM clientes_gestores cg
+              WHERE cg.id_cliente = p.id_cliente AND cg.id_usuario = p_id_usuario_actor AND cg.activo = 1
+            ))
+      )
   ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Asignacion no encontrada';
   END IF;
@@ -373,16 +455,26 @@ END $$
 DROP PROCEDURE IF EXISTS sp_asignacion_cerrar $$
 CREATE PROCEDURE sp_asignacion_cerrar(
   IN p_id_asignacion    INT UNSIGNED,
+  IN p_id_usuario_actor INT UNSIGNED,
+  IN p_codigo_rol_actor VARCHAR(50),
   IN p_id_empresa_actor INT UNSIGNED,
   IN p_modificado_por   VARCHAR(150)
 )
 BEGIN
-  -- Solo Admin: cierra UNA asignacion puntual (para cerrar "solo a
-  -- algunos" talentos de un periodo, en vez de a todos).
+  -- Admin, o Gestor del cliente de este proyecto: cierra UNA asignacion
+  -- puntual (para cerrar "solo a algunos" talentos de un periodo, en vez
+  -- de a todos).
   IF NOT EXISTS (
     SELECT 1 FROM proyecto_asignaciones a
     JOIN proyectos p ON p.id_proyecto = a.id_proyecto
     WHERE a.id_asignacion = p_id_asignacion AND p.id_empresa = p_id_empresa_actor
+      AND (
+        p_codigo_rol_actor = 'ADMIN'
+        OR (p_codigo_rol_actor = 'GESTOR_SERVICIO' AND EXISTS (
+              SELECT 1 FROM clientes_gestores cg
+              WHERE cg.id_cliente = p.id_cliente AND cg.id_usuario = p_id_usuario_actor AND cg.activo = 1
+            ))
+      )
   ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Asignacion no encontrada';
   END IF;
@@ -398,14 +490,25 @@ CREATE PROCEDURE sp_periodo_cerrar(
   IN p_id_proyecto      INT UNSIGNED,
   IN p_periodo_desde    DATE,
   IN p_periodo_hasta    DATE,
+  IN p_id_usuario_actor INT UNSIGNED,
+  IN p_codigo_rol_actor VARCHAR(50),
   IN p_id_empresa_actor INT UNSIGNED,
   IN p_modificado_por   VARCHAR(150)
 )
 BEGIN
-  -- Solo Admin: cierra de una vez TODAS las asignaciones activas de ese
-  -- proyecto para ese periodo exacto (cerrar "para todos").
+  -- Admin, o Gestor del cliente de este proyecto: cierra de una vez TODAS
+  -- las asignaciones activas de ese proyecto para ese periodo exacto
+  -- (cerrar "para todos").
   IF NOT EXISTS (
-    SELECT 1 FROM proyectos WHERE id_proyecto = p_id_proyecto AND id_empresa = p_id_empresa_actor
+    SELECT 1 FROM proyectos p
+    WHERE p.id_proyecto = p_id_proyecto AND p.id_empresa = p_id_empresa_actor
+      AND (
+        p_codigo_rol_actor = 'ADMIN'
+        OR (p_codigo_rol_actor = 'GESTOR_SERVICIO' AND EXISTS (
+              SELECT 1 FROM clientes_gestores cg
+              WHERE cg.id_cliente = p.id_cliente AND cg.id_usuario = p_id_usuario_actor AND cg.activo = 1
+            ))
+      )
   ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Proyecto no encontrado';
   END IF;
@@ -426,14 +529,25 @@ CREATE PROCEDURE sp_periodo_reabrir(
   IN p_id_proyecto      INT UNSIGNED,
   IN p_periodo_desde    DATE,
   IN p_periodo_hasta    DATE,
+  IN p_id_usuario_actor INT UNSIGNED,
+  IN p_codigo_rol_actor VARCHAR(50),
   IN p_id_empresa_actor INT UNSIGNED,
   IN p_modificado_por   VARCHAR(150)
 )
 BEGIN
-  -- Solo Admin: reabre de una vez todas las asignaciones de ese proyecto
-  -- para ese periodo exacto (vuelven a Pendiente).
+  -- Admin, o Gestor del cliente de este proyecto: reabre de una vez todas
+  -- las asignaciones de ese proyecto para ese periodo exacto (vuelven a
+  -- Pendiente).
   IF NOT EXISTS (
-    SELECT 1 FROM proyectos WHERE id_proyecto = p_id_proyecto AND id_empresa = p_id_empresa_actor
+    SELECT 1 FROM proyectos p
+    WHERE p.id_proyecto = p_id_proyecto AND p.id_empresa = p_id_empresa_actor
+      AND (
+        p_codigo_rol_actor = 'ADMIN'
+        OR (p_codigo_rol_actor = 'GESTOR_SERVICIO' AND EXISTS (
+              SELECT 1 FROM clientes_gestores cg
+              WHERE cg.id_cliente = p.id_cliente AND cg.id_usuario = p_id_usuario_actor AND cg.activo = 1
+            ))
+      )
   ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Proyecto no encontrado';
   END IF;

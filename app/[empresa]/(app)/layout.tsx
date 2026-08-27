@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { obtenerEmpresaPorSlug } from "@/lib/services/empresaService";
 import { tieneProyectoDeTipo } from "@/lib/services/proyectoService";
 import NavBar from "./nav-bar";
+import AlertaActividadesBanner from "@/components/AlertaActividadesBanner";
 
 export default async function AppLayout({
   children,
@@ -60,6 +61,9 @@ export default async function AppLayout({
         tieneClases={tieneClases.length > 0}
         tieneActividades={tieneActividades.length > 0}
       />
+      {session.user.rol === "TALENTO" && tieneActividades.length > 0 && (
+        <AlertaActividadesBanner empresaSlug={params.empresa} />
+      )}
       <main className="max-w-5xl mx-auto px-4 py-6">{children}</main>
     </div>
   );

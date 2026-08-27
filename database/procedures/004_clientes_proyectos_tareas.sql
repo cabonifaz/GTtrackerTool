@@ -69,6 +69,12 @@ BEGIN
     FROM clientes
     WHERE id_empresa = p_id_empresa_actor
     ORDER BY nombre;
+  ELSEIF p_codigo_rol_actor = 'GESTOR_SERVICIO' THEN
+    SELECT c.id_cliente, c.nombre, c.activo, c.fecha_creacion
+    FROM clientes c
+    JOIN clientes_gestores cg ON cg.id_cliente = c.id_cliente AND cg.id_usuario = p_id_usuario_actor AND cg.activo = 1
+    WHERE c.id_empresa = p_id_empresa_actor
+    ORDER BY c.nombre;
   ELSE
     SELECT DISTINCT c.id_cliente, c.nombre, c.activo, c.fecha_creacion
     FROM clientes c
@@ -187,6 +193,18 @@ BEGIN
            t.codigo AS codigo_tipo_proyecto, t.valor AS tipo_proyecto,
            p.activo, p.fecha_creacion
     FROM proyectos p
+    LEFT JOIN clientes c ON c.id_cliente = p.id_cliente
+    JOIN maestro e ON e.id_maestro = p.id_estado
+    JOIN maestro t ON t.id_maestro = p.id_tipo_proyecto
+    WHERE p.id_empresa = p_id_empresa_actor
+    ORDER BY p.nombre;
+  ELSEIF p_codigo_rol_actor = 'GESTOR_SERVICIO' THEN
+    SELECT p.id_proyecto, p.id_cliente, c.nombre AS cliente, p.nombre, p.descripcion,
+           e.codigo AS codigo_estado, e.valor AS estado,
+           t.codigo AS codigo_tipo_proyecto, t.valor AS tipo_proyecto,
+           p.activo, p.fecha_creacion
+    FROM proyectos p
+    JOIN clientes_gestores cg ON cg.id_cliente = p.id_cliente AND cg.id_usuario = p_id_usuario_actor AND cg.activo = 1
     LEFT JOIN clientes c ON c.id_cliente = p.id_cliente
     JOIN maestro e ON e.id_maestro = p.id_estado
     JOIN maestro t ON t.id_maestro = p.id_tipo_proyecto

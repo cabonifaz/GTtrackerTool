@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import bcrypt from "bcryptjs";
-import { requireAdmin } from "@/lib/apiHelpers";
+import { requireAdminOGestor } from "@/lib/apiHelpers";
 import { BusinessError } from "@/lib/db";
 import { upsertAsignacion } from "@/lib/services/actividadService";
 import { crearUsuario, listarUsuarios } from "@/lib/services/usuarioService";
@@ -62,7 +62,7 @@ function primerDiaDelMes(d: Date): string {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await requireAdmin();
+  const session = await requireAdminOGestor();
   if (session instanceof NextResponse) return session;
 
   const form = await req.formData();
@@ -172,6 +172,8 @@ export async function POST(req: NextRequest) {
         aFechaISO(periodoFecha),
         periodoTexto,
         lider,
+        session.user.idUsuario,
+        session.user.rol,
         session.user.idEmpresa!,
         session.user.email ?? ""
       );

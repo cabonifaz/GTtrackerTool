@@ -2,8 +2,10 @@
 
 import { useMemo, useRef, useState, FormEvent } from "react";
 import {
+  Cliente,
   ImportarUsuarioResultado,
   MaestroItem,
+  MiClienteGestionado,
   MiProyecto,
   Proyecto,
   Usuario,
@@ -26,16 +28,19 @@ export default function UsuariosClient({
   sistemasIniciales,
   proyectosIniciales = [],
   paisesCalendarioIniciales = [],
+  clientesIniciales = [],
 }: {
   usuariosIniciales: Usuario[];
   sistemasIniciales: UsuarioSistema[];
   proyectosIniciales?: Proyecto[];
   paisesCalendarioIniciales?: MaestroItem[];
+  clientesIniciales?: Cliente[];
 }) {
   const [usuarios, setUsuarios] = useState<Usuario[]>(usuariosIniciales);
   const [sistemas, setSistemas] = useState<UsuarioSistema[]>(sistemasIniciales);
   const [proyectos, setProyectos] = useState<Proyecto[]>(proyectosIniciales);
   const [paisesCalendario] = useState<MaestroItem[]>(paisesCalendarioIniciales);
+  const [clientes] = useState<Cliente[]>(clientesIniciales);
   const [busqueda, setBusqueda] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [nuevaCuenta, setNuevaCuenta] = useState<{ apiKey: string; apiSecret: string } | null>(
@@ -53,6 +58,12 @@ export default function UsuariosClient({
   const [cargandoProyectosUsuario, setCargandoProyectosUsuario] = useState(false);
   const [procesandoAsignacion, setProcesandoAsignacion] = useState<Set<string>>(new Set());
   const [guardandoPaisAsignacion, setGuardandoPaisAsignacion] = useState<string | null>(null);
+
+  // Clientes gestionados por usuario (solo Gestor de Servicio)
+  const [panelClientesUsuario, setPanelClientesUsuario] = useState<number | null>(null);
+  const [clientesPorUsuario, setClientesPorUsuario] = useState<Record<number, MiClienteGestionado[]>>({});
+  const [cargandoClientesUsuario, setCargandoClientesUsuario] = useState(false);
+  const [procesandoClienteGestor, setProcesandoClienteGestor] = useState<Set<string>>(new Set());
 
   // Carga masiva
   const inputArchivoRef = useRef<HTMLInputElement>(null);
@@ -180,6 +191,61 @@ export default function UsuariosClient({
       setError(err instanceof Error ? err.message : "Error al actualizar pais de calendario");
     } finally {
       setGuardandoPaisAsignacion(null);
+    }
+  }
+
+  async function abrirPanelClientes(idUsuario: number) {
+    if (panelClientesUsuario === idUsuario) {
+      setPanelClientesUsuario(null);
+      return;
+    }
+    setPanelClientesUsuario(idUsuario);
+    if (!clientesPorUsuario[idUsuario]) {
+      setCargandoClientesUsuario(true);
+      try {
+        const asignados = await fetchJson<MiClienteGestionado[]>(`/api/usuarios/${idUsuario}/clientes`);
+        setClientesPorUsuario((prev) => ({ ...prev, [idUsuario]: asignados }));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "No se pudieron cargar los clientes del gestor");
+      } finally {
+        setCargandoClientesUsuario(false);
+      }
+    }
+  }
+
+  async function alternarClienteGestor(idUsuario: number, idCliente: number, yaAsignado: boolean) {
+    const clave = `${idUsuario}:${idCliente}`;
+    setProcesandoClienteGestor((prev) => new Set(prev).add(clave));
+    setError(null);
+    try {
+      if (yaAsignado) {
+        const res = await fetch(`/api/usuarios/${idUsuario}/clientes?idCliente=${idCliente}`, { method: "DELETE" });
+        if (!res.ok) throw new Error((await res.json()).error);
+        setClientesPorUsuario((prev) => ({
+          ...prev,
+          [idUsuario]: (prev[idUsuario] ?? []).filter((c) => c.id_cliente !== idCliente),
+        }));
+      } else {
+        const res = await fetch(`/api/usuarios/${idUsuario}/clientes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idCliente }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error);
+        const cInfo = clientes.find((c) => c.id_cliente === idCliente);
+        setClientesPorUsuario((prev) => ({
+          ...prev,
+          [idUsuario]: [...(prev[idUsuario] ?? []), { id_cliente: idCliente, cliente: cInfo?.nombre ?? "Cliente" }],
+        }));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al actualizar el cliente del gestor");
+    } finally {
+      setProcesandoClienteGestor((prev) => {
+        const next = new Set(prev);
+        next.delete(clave);
+        return next;
+      });
     }
   }
 
@@ -376,6 +442,7 @@ export default function UsuariosClient({
           <select name="codigoRol" className="rounded-md border border-gray-300 px-3 py-2 text-sm">
             <option value="TALENTO">Talento</option>
             <option value="ADMIN">Admin</option>
+            <option value="GESTOR_SERVICIO">Gestor de Servicio</option>
           </select>
           <button
             disabled={enviandoUsuario}
@@ -428,6 +495,9 @@ export default function UsuariosClient({
                 const asignados = proyectosPorUsuario[u.id_usuario];
                 const cantidadAsignados = asignados?.length;
                 const estaAbierto = panelProyectosUsuario === u.id_usuario;
+                const clientesAsignados = clientesPorUsuario[u.id_usuario];
+                const cantidadClientesAsignados = clientesAsignados?.length;
+                const panelClientesAbierto = panelClientesUsuario === u.id_usuario;
 
                 return (
                   <li key={u.id_usuario} className="text-sm">
@@ -455,6 +525,19 @@ export default function UsuariosClient({
                           >
                             Proyectos {cantidadAsignados !== undefined ? `(${cantidadAsignados})` : ""}
                           </button>
+                          {u.codigo_rol === "GESTOR_SERVICIO" && (
+                            <button
+                              type="button"
+                              onClick={() => abrirPanelClientes(u.id_usuario)}
+                              className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded border transition-colors ${
+                                panelClientesAbierto
+                                  ? "border-[var(--color-primario)] text-[var(--color-primario)] bg-white"
+                                  : "border-gray-300 text-gray-700 bg-gray-50 hover:bg-gray-100"
+                              }`}
+                            >
+                              Clientes {cantidadClientesAsignados !== undefined ? `(${cantidadClientesAsignados})` : ""}
+                            </button>
+                          )}
                           <button
                             onClick={() => setEditandoUsuario(editandoUsuario === u.id_usuario ? null : u.id_usuario)}
                             className="text-gray-500 hover:text-gray-900 underline text-xs"
@@ -502,6 +585,7 @@ export default function UsuariosClient({
                           >
                             <option value="TALENTO">Talento</option>
                             <option value="ADMIN">Admin</option>
+            <option value="GESTOR_SERVICIO">Gestor de Servicio</option>
                           </select>
                           <button
                             disabled={idsProcesando.has(`editar-${u.id_usuario}`)}
@@ -575,6 +659,46 @@ export default function UsuariosClient({
                                     </span>
                                   )}
                                 </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Panel de Clientes gestionados (solo Gestor de Servicio) */}
+                    {panelClientesAbierto && (
+                      <div className="px-4 pb-4 pt-2 bg-gray-50 border-t border-gray-100 space-y-2.5">
+                        <p className="text-xs font-semibold text-gray-700">
+                          Clientes que gestiona {u.nombres} {u.apellidos} (como si fuera Admin, pero solo para
+                          estos):
+                        </p>
+                        {cargandoClientesUsuario && !clientesAsignados ? (
+                          <CargandoInline texto="Cargando clientes..." />
+                        ) : clientes.length === 0 ? (
+                          <p className="text-xs text-gray-400">No hay clientes activos en la empresa.</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {clientes.map((c) => {
+                              const asignado = (clientesAsignados ?? []).some((ac) => ac.id_cliente === c.id_cliente);
+                              const clave = `${u.id_usuario}:${c.id_cliente}`;
+                              const procesando = procesandoClienteGestor.has(clave);
+                              return (
+                                <button
+                                  key={c.id_cliente}
+                                  type="button"
+                                  onClick={() => alternarClienteGestor(u.id_usuario, c.id_cliente, asignado)}
+                                  disabled={procesando}
+                                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs border transition-colors disabled:opacity-50 ${
+                                    asignado
+                                      ? "bg-[var(--color-primario)] text-white border-[var(--color-primario)] font-medium"
+                                      : "border-gray-300 text-gray-700 bg-white hover:bg-gray-100"
+                                  }`}
+                                >
+                                  {procesando && <Spinner className="h-3 w-3" />}
+                                  {asignado && <span>✓</span>}
+                                  {c.nombre}
+                                </button>
                               );
                             })}
                           </div>

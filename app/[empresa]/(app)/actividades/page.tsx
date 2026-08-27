@@ -11,7 +11,9 @@ export default async function ActividadesPage() {
   const idUsuario = session!.user.idUsuario;
   const rol = session!.user.rol;
   const idEmpresa = session!.user.idEmpresa!;
-  const esAdmin = rol === "ADMIN";
+  // El Gestor de Servicio tiene la misma vista/permisos que el Admin en
+  // esta pantalla; el scope a sus clientes asignados lo aplican los SPs.
+  const esAdmin = rol === "ADMIN" || rol === "GESTOR_SERVICIO";
 
   const [proyectos, asignaciones, talentos, empresa] = await Promise.all([
     esAdmin ? listarProyectos(idUsuario, rol, idEmpresa) : Promise.resolve([]),

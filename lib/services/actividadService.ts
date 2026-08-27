@@ -1,5 +1,5 @@
 import { executeProcedure } from "@/lib/db";
-import { ActividadProyecto, CodigoRol, ProyectoAsignacion } from "@/lib/types";
+import { ActividadProyecto, AlertaActividadTalento, CodigoRol, ProyectoAsignacion } from "@/lib/types";
 
 export function upsertAsignacion(
   idProyecto: number,
@@ -11,6 +11,8 @@ export function upsertAsignacion(
   periodoHasta: string,
   periodoReferencia: string | null,
   liderTecnico: string | null,
+  idUsuarioActor: number,
+  codigoRolActor: CodigoRol,
   idEmpresaActor: number,
   creadoPor: string
 ) {
@@ -24,17 +26,43 @@ export function upsertAsignacion(
     periodoHasta,
     periodoReferencia,
     liderTecnico,
+    idUsuarioActor,
+    codigoRolActor,
     idEmpresaActor,
     creadoPor,
   ]);
 }
 
-export function desactivarAsignacion(idAsignacion: number, idEmpresaActor: number, modificadoPor: string) {
-  return executeProcedure("sp_proyecto_asignacion_desactivar", [idAsignacion, idEmpresaActor, modificadoPor]);
+export function desactivarAsignacion(
+  idAsignacion: number,
+  idUsuarioActor: number,
+  codigoRolActor: CodigoRol,
+  idEmpresaActor: number,
+  modificadoPor: string
+) {
+  return executeProcedure("sp_proyecto_asignacion_desactivar", [
+    idAsignacion,
+    idUsuarioActor,
+    codigoRolActor,
+    idEmpresaActor,
+    modificadoPor,
+  ]);
 }
 
-export function activarAsignacion(idAsignacion: number, idEmpresaActor: number, modificadoPor: string) {
-  return executeProcedure("sp_proyecto_asignacion_activar", [idAsignacion, idEmpresaActor, modificadoPor]);
+export function activarAsignacion(
+  idAsignacion: number,
+  idUsuarioActor: number,
+  codigoRolActor: CodigoRol,
+  idEmpresaActor: number,
+  modificadoPor: string
+) {
+  return executeProcedure("sp_proyecto_asignacion_activar", [
+    idAsignacion,
+    idUsuarioActor,
+    codigoRolActor,
+    idEmpresaActor,
+    modificadoPor,
+  ]);
 }
 
 export function listarAsignaciones(
@@ -133,18 +161,44 @@ export function finalizarAsignacion(
   ]);
 }
 
-export function reabrirAsignacion(idAsignacion: number, idEmpresaActor: number, modificadoPor: string) {
-  return executeProcedure("sp_asignacion_reabrir", [idAsignacion, idEmpresaActor, modificadoPor]);
+export function reabrirAsignacion(
+  idAsignacion: number,
+  idUsuarioActor: number,
+  codigoRolActor: CodigoRol,
+  idEmpresaActor: number,
+  modificadoPor: string
+) {
+  return executeProcedure("sp_asignacion_reabrir", [
+    idAsignacion,
+    idUsuarioActor,
+    codigoRolActor,
+    idEmpresaActor,
+    modificadoPor,
+  ]);
 }
 
-export function cerrarAsignacion(idAsignacion: number, idEmpresaActor: number, modificadoPor: string) {
-  return executeProcedure("sp_asignacion_cerrar", [idAsignacion, idEmpresaActor, modificadoPor]);
+export function cerrarAsignacion(
+  idAsignacion: number,
+  idUsuarioActor: number,
+  codigoRolActor: CodigoRol,
+  idEmpresaActor: number,
+  modificadoPor: string
+) {
+  return executeProcedure("sp_asignacion_cerrar", [
+    idAsignacion,
+    idUsuarioActor,
+    codigoRolActor,
+    idEmpresaActor,
+    modificadoPor,
+  ]);
 }
 
 export function cerrarPeriodo(
   idProyecto: number,
   periodoDesde: string,
   periodoHasta: string,
+  idUsuarioActor: number,
+  codigoRolActor: CodigoRol,
   idEmpresaActor: number,
   modificadoPor: string
 ) {
@@ -152,6 +206,8 @@ export function cerrarPeriodo(
     idProyecto,
     periodoDesde,
     periodoHasta,
+    idUsuarioActor,
+    codigoRolActor,
     idEmpresaActor,
     modificadoPor,
   ]);
@@ -161,6 +217,8 @@ export function reabrirPeriodo(
   idProyecto: number,
   periodoDesde: string,
   periodoHasta: string,
+  idUsuarioActor: number,
+  codigoRolActor: CodigoRol,
   idEmpresaActor: number,
   modificadoPor: string
 ) {
@@ -168,7 +226,13 @@ export function reabrirPeriodo(
     idProyecto,
     periodoDesde,
     periodoHasta,
+    idUsuarioActor,
+    codigoRolActor,
     idEmpresaActor,
     modificadoPor,
   ]);
+}
+
+export function listarAlertasTalento(idUsuario: number, idEmpresaActor: number) {
+  return executeProcedure<AlertaActividadTalento>("sp_actividades_alerta_talento", [idUsuario, idEmpresaActor]);
 }
