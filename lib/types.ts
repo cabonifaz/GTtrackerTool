@@ -94,6 +94,14 @@ export interface MiClienteGestionado {
   cliente: string;
 }
 
+export interface UsuarioBloqueado {
+  id_usuario: number;
+  nombres: string;
+  apellidos: string;
+  email: string;
+  bloqueado_hasta: string;
+}
+
 export type CodigoTipoProyecto = "CRONOMETRO" | "CLASES" | "ACTIVIDADES_EXCEL";
 
 export interface Proyecto {

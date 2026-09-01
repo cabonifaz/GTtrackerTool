@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, FormEvent } from "react";
 import {
   Cliente,
   ImportarUsuarioResultado,
@@ -9,6 +9,7 @@ import {
   MiProyecto,
   Proyecto,
   Usuario,
+  UsuarioBloqueado,
   UsuarioSistema,
 } from "@/lib/types";
 import { CargandoInline, Spinner } from "@/components/Spinner";
@@ -64,6 +65,45 @@ export default function UsuariosClient({
   const [clientesPorUsuario, setClientesPorUsuario] = useState<Record<number, MiClienteGestionado[]>>({});
   const [cargandoClientesUsuario, setCargandoClientesUsuario] = useState(false);
   const [procesandoClienteGestor, setProcesandoClienteGestor] = useState<Set<string>>(new Set());
+
+  // Usuarios bloqueados por intentos fallidos de login (15 min tras 5
+  // fallos). Se refresca al entrar y despues de cada desbloqueo.
+  const [bloqueados, setBloqueados] = useState<UsuarioBloqueado[]>([]);
+  const [desbloqueando, setDesbloqueando] = useState<Set<string>>(new Set());
+
+  async function cargarBloqueados() {
+    try {
+      setBloqueados(await fetchJson<UsuarioBloqueado[]>("/api/usuarios/bloqueados"));
+    } catch {
+      // No bloqueante: si falla, simplemente no se muestra la alerta.
+    }
+  }
+
+  useEffect(() => {
+    cargarBloqueados();
+  }, []);
+
+  async function desbloquearUsuario(email: string) {
+    setDesbloqueando((prev) => new Set(prev).add(email));
+    setError(null);
+    try {
+      const res = await fetch("/api/usuarios/desbloquear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setBloqueados((prev) => prev.filter((b) => b.email !== email));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo desbloquear el usuario");
+    } finally {
+      setDesbloqueando((prev) => {
+        const next = new Set(prev);
+        next.delete(email);
+        return next;
+      });
+    }
+  }
 
   // Carga masiva
   const inputArchivoRef = useRef<HTMLInputElement>(null);
@@ -413,6 +453,41 @@ export default function UsuariosClient({
           <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
             {error}
           </p>
+        )}
+
+        {bloqueados.length > 0 && (
+          <div className="rounded-md border border-red-300 bg-red-50 px-4 py-3 space-y-2">
+            <p className="text-sm font-medium text-red-800">
+              🔒 {bloqueados.length} usuario{bloqueados.length === 1 ? "" : "s"} bloqueado
+              {bloqueados.length === 1 ? "" : "s"} por intentos fallidos de login
+            </p>
+            <ul className="space-y-1.5">
+              {bloqueados.map((b) => (
+                <li key={b.email} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span className="text-red-700">
+                    {b.nombres} {b.apellidos}
+                    <span className="text-red-500"> · {b.email}</span>
+                    <span className="text-red-400">
+                      {" "}
+                      · bloqueado hasta las{" "}
+                      {new Date(b.bloqueado_hasta).toLocaleTimeString("es-PE", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </span>
+                  <button
+                    onClick={() => desbloquearUsuario(b.email)}
+                    disabled={desbloqueando.has(b.email)}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-red-300 bg-white text-red-700 text-xs font-medium px-3 py-1 hover:bg-red-100 disabled:opacity-50"
+                  >
+                    {desbloqueando.has(b.email) && <Spinner className="h-3 w-3" />}
+                    Desbloquear
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         <p className="text-sm text-gray-500">

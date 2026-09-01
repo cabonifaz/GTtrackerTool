@@ -49,3 +49,21 @@ export function registrarIntentoFallido(email: string): void {
 export function registrarLoginExitoso(email: string): void {
   intentos.delete(normalizarClave(email));
 }
+
+// Para la alerta/boton de desbloqueo en Usuarios (solo Admin). Al vivir
+// en memoria, esto refleja el estado de ESTA instancia del proceso --
+// coherente con la limitacion ya aceptada de estaBloqueado().
+export function listarBloqueados(): { email: string; bloqueadoHasta: number }[] {
+  const ahora = Date.now();
+  const resultado: { email: string; bloqueadoHasta: number }[] = [];
+  for (const [email, registro] of Array.from(intentos)) {
+    if (registro.bloqueadoHasta && registro.bloqueadoHasta > ahora) {
+      resultado.push({ email, bloqueadoHasta: registro.bloqueadoHasta });
+    }
+  }
+  return resultado;
+}
+
+export function desbloquear(email: string): boolean {
+  return intentos.delete(normalizarClave(email));
+}
