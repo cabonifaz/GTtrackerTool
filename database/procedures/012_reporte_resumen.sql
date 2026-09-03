@@ -116,45 +116,11 @@ BEGIN
   ORDER BY u.nombres, u.apellidos;
 END $$
 
--- Fuente de datos de sp_reporte_resumen_avance: los registros_tiempo
--- individuales que se suman para dar "horas_trabajadas" ahi -- mismo
--- proyecto y mismo rango [inicio de mes, fecha de corte], fila por fila
--- en vez de agregado. Para exportar el resumen junto con de donde sale.
+-- sp_reporte_resumen_avance_detalle existio brevemente como fuente de
+-- datos del export de "Resumen" (registros_tiempo crudos). Se reemplazo
+-- por sp_reporte_facturacion_mensual (021_reporte_facturacion.sql), que
+-- cubre el mismo caso con mas detalle (idRate, DNI, dias off/fault). Se
+-- deja el DROP para limpiarla de las bases donde ya se habia aplicado.
 DROP PROCEDURE IF EXISTS sp_reporte_resumen_avance_detalle $$
-CREATE PROCEDURE sp_reporte_resumen_avance_detalle(
-  IN p_id_proyecto      INT UNSIGNED,
-  IN p_anio             INT,
-  IN p_mes              INT,
-  IN p_id_empresa_actor INT UNSIGNED
-)
-BEGIN
-  DECLARE v_inicio_mes DATE;
-  DECLARE v_fin_mes DATE;
-  DECLARE v_fecha_corte DATE;
-
-  IF NOT EXISTS (SELECT 1 FROM proyectos WHERE id_proyecto = p_id_proyecto AND id_empresa = p_id_empresa_actor) THEN
-    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Proyecto no encontrado';
-  END IF;
-
-  SET v_inicio_mes = MAKEDATE(p_anio, 1) + INTERVAL (p_mes - 1) MONTH;
-  SET v_fin_mes = LAST_DAY(v_inicio_mes);
-  SET v_fecha_corte = LEAST(v_fin_mes, CURDATE() - INTERVAL 1 DAY);
-  IF v_fecha_corte < v_inicio_mes THEN
-    SET v_fecha_corte = v_inicio_mes - INTERVAL 1 DAY;
-  END IF;
-
-  SELECT rt.id_registro, CONCAT(u.nombres, ' ', u.apellidos) AS colaborador,
-         t.nombre AS tarea, rt.fecha_inicio, rt.fecha_fin,
-         ROUND(rt.duracion_segundos / 3600, 2) AS horas, rt.descripcion
-  FROM registros_tiempo rt
-  JOIN usuarios u ON u.id_usuario = rt.id_usuario
-  JOIN tareas t ON t.id_tarea = rt.id_tarea
-  WHERE t.id_proyecto = p_id_proyecto
-    AND rt.activo = 1
-    AND rt.duracion_segundos IS NOT NULL
-    AND rt.fecha_inicio >= v_inicio_mes
-    AND rt.fecha_inicio < v_fecha_corte + INTERVAL 1 DAY
-  ORDER BY u.nombres, u.apellidos, rt.fecha_inicio;
-END $$
 
 DELIMITER ;

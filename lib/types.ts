@@ -368,6 +368,22 @@ export interface ReporteTareaRow {
   ultimo_fin: string;
 }
 
+export interface ReporteFacturacionRow {
+  id_usuario: number;
+  colaborador: string;
+  dni: string | null;
+  id_perfil: number | null;
+  id_rate: string | null;
+  rate_nombre: string | null;
+  tarifa: number | null;
+  codigo_moneda: string | null;
+  horas_trabajadas: number;
+  horas_objetivo: number;
+  dias_off: number;
+  dias_fault: number;
+  fecha_corte: string;
+}
+
 export interface ResumenAvanceRow {
   id_usuario: number;
   colaborador: string;
