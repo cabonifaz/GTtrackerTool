@@ -818,7 +818,7 @@ export default function ReportesClient({
               onClick={exportarResumen}
               disabled={exportando || !buscoResumen || filasResumen.length === 0}
               className="inline-flex items-center gap-2 rounded-md border border-gray-300 text-sm font-medium px-4 py-2 disabled:opacity-50"
-              title="Detalle por talento (idRate, DNI, horas, dias off/fault) + facturacion agrupada por rate"
+              title="Detalle por talento + facturacion agrupada por rate + detalle de horas registradas"
             >
               {exportando && <Spinner />}
               Exportar facturacion (Excel)

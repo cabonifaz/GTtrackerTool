@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, handleApiError } from "@/lib/apiHelpers";
-import { reporteFacturacionMensual } from "@/lib/services/reporteService";
+import { reporteFacturacionDetalleHoras, reporteFacturacionMensual } from "@/lib/services/reporteService";
 import { listarProyectos } from "@/lib/services/proyectoService";
 import { listarPerfiles } from "@/lib/services/perfilService";
 import { generarExcel, respuestaExcel } from "@/lib/excelExport";
@@ -28,9 +28,10 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [detalle, proyectos] = await Promise.all([
+    const [detalle, proyectos, detalleHoras] = await Promise.all([
       reporteFacturacionMensual(Number(idProyecto), Number(anio), Number(mes), session.user.idEmpresa!),
       listarProyectos(session.user.idUsuario, session.user.rol, session.user.idEmpresa!),
+      reporteFacturacionDetalleHoras(Number(idProyecto), Number(anio), Number(mes), session.user.idEmpresa!),
     ]);
 
     const proyecto = proyectos.find((p) => p.id_proyecto === Number(idProyecto));
@@ -147,6 +148,18 @@ export async function GET(req: NextRequest) {
             totalBilling: totales.total,
           },
         ],
+      },
+      {
+        nombre: "Detailed Report",
+        columnas: [
+          { header: "Colaborador", key: "colaborador", width: 25 },
+          { header: "Tarea", key: "tarea", width: 25 },
+          { header: "Inicio", key: "fecha_inicio", width: 20 },
+          { header: "Fin", key: "fecha_fin", width: 20 },
+          { header: "Horas", key: "horas", width: 10, numFmt: "0.00" },
+          { header: "Descripcion", key: "descripcion", width: 30 },
+        ],
+        filas: detalleHoras.map((f) => ({ ...f, horas: Number(f.horas) })),
       },
     ]);
 

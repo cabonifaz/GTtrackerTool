@@ -76,6 +76,25 @@ export function reporteFacturacionMensual(idProyecto: number, anio: number, mes:
   ]);
 }
 
+export interface FacturacionDetalleHorasRow {
+  id_registro: number;
+  colaborador: string;
+  tarea: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  horas: number;
+  descripcion: string | null;
+}
+
+export function reporteFacturacionDetalleHoras(idProyecto: number, anio: number, mes: number, idEmpresaActor: number) {
+  return executeProcedure<FacturacionDetalleHorasRow>("sp_reporte_facturacion_detalle_horas", [
+    idProyecto,
+    anio,
+    mes,
+    idEmpresaActor,
+  ]);
+}
+
 export function reporteProyeccionCliente(
   idCliente: number,
   mesesAtras: number,

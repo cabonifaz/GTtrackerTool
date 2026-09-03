@@ -4,11 +4,16 @@
 -- detalle por talento + hoja de facturacion agrupada por perfil/rate),
 -- replica un excel que ya manejaban a mano.
 --
--- Por talento: horas trabajadas, perfil/tarifa vigente al corte, horas
--- objetivo (dias laborales del mes segun su calendario * 8h), tiempo en
--- falta/extra contra ese objetivo, dias de ausencia aprobada, y "dias
--- fault" = dias laborales (ya sin contar ausencias) en los que no
--- registro ninguna hora en este proyecto.
+-- Por talento: horas trabajadas, perfil/tarifa vigente al corte, tiempo
+-- en falta/extra contra el objetivo, dias de ausencia aprobada, y "dias
+-- fault" = dias laborales (sin contar ausencias) en los que no registro
+-- ninguna hora en este proyecto.
+--
+-- Horas objetivo (Hour Target) es un numero FIJO igual para todos los
+-- talentos del proyecto: dias habiles (lunes a viernes) del mes hasta la
+-- fecha de corte * 8h, sin descontar feriados ni ausencias -- replica el
+-- criterio que ya usaban a mano (siempre 160 en un mes de 20 dias
+-- habiles), no el calendario de feriados particular de cada talento.
 --
 -- Solo se debe exponer desde rutas requireAdmin() -- incluye tarifas.
 -- =====================================================================
@@ -134,7 +139,8 @@ BEGIN
     tv.tarifa,
     mon.codigo AS codigo_moneda,
     ROUND(COALESCE(ht.segundos, 0) / 3600, 2) AS horas_trabajadas,
-    (SELECT COUNT(*) FROM dias_laborales dl WHERE dl.id_usuario = a.id_usuario) * 8 AS horas_objetivo,
+    (SELECT COUNT(*) FROM dias d WHERE d.fecha <= v_fecha_corte AND DAYOFWEEK(d.fecha) NOT IN (1, 7)) * 8
+      AS horas_objetivo,
     (SELECT COUNT(*) FROM dias_ausencia da WHERE da.id_usuario = a.id_usuario) AS dias_off,
     GREATEST(
       0,
@@ -150,6 +156,47 @@ BEGIN
   LEFT JOIN horas_trabajadas ht ON ht.id_usuario = a.id_usuario
   WHERE u.activo = 1
   ORDER BY u.nombres, u.apellidos;
+END $$
+
+-- Detalle de los registros_tiempo individuales de este proyecto/mes --
+-- de donde salen los totales de sp_reporte_facturacion_mensual, para
+-- poder auditar/reconstruir cada numero fila por fila (hoja aparte del
+-- export, como el "Detailed Report" que ya manejaban a mano).
+DROP PROCEDURE IF EXISTS sp_reporte_facturacion_detalle_horas $$
+CREATE PROCEDURE sp_reporte_facturacion_detalle_horas(
+  IN p_id_proyecto      INT UNSIGNED,
+  IN p_anio             INT,
+  IN p_mes              INT,
+  IN p_id_empresa_actor INT UNSIGNED
+)
+BEGIN
+  DECLARE v_inicio_mes DATE;
+  DECLARE v_fin_mes DATE;
+  DECLARE v_fecha_corte DATE;
+
+  IF NOT EXISTS (SELECT 1 FROM proyectos WHERE id_proyecto = p_id_proyecto AND id_empresa = p_id_empresa_actor) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Proyecto no encontrado';
+  END IF;
+
+  SET v_inicio_mes = MAKEDATE(p_anio, 1) + INTERVAL (p_mes - 1) MONTH;
+  SET v_fin_mes = LAST_DAY(v_inicio_mes);
+  SET v_fecha_corte = LEAST(v_fin_mes, CURDATE() - INTERVAL 1 DAY);
+  IF v_fecha_corte < v_inicio_mes THEN
+    SET v_fecha_corte = v_inicio_mes - INTERVAL 1 DAY;
+  END IF;
+
+  SELECT rt.id_registro, CONCAT(u.nombres, ' ', u.apellidos) AS colaborador,
+         t.nombre AS tarea, rt.fecha_inicio, rt.fecha_fin,
+         ROUND(rt.duracion_segundos / 3600, 2) AS horas, rt.descripcion
+  FROM registros_tiempo rt
+  JOIN usuarios u ON u.id_usuario = rt.id_usuario
+  JOIN tareas t ON t.id_tarea = rt.id_tarea
+  WHERE t.id_proyecto = p_id_proyecto
+    AND rt.activo = 1
+    AND rt.duracion_segundos IS NOT NULL
+    AND rt.fecha_inicio >= v_inicio_mes
+    AND rt.fecha_inicio < v_fecha_corte + INTERVAL 1 DAY
+  ORDER BY u.nombres, u.apellidos, rt.fecha_inicio;
 END $$
 
 DELIMITER ;
