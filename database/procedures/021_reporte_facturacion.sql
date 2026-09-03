@@ -9,11 +9,12 @@
 -- fault" = dias laborales (sin contar ausencias) en los que no registro
 -- ninguna hora en este proyecto.
 --
--- Horas objetivo (Hour Target) es un numero FIJO igual para todos los
--- talentos del proyecto: dias habiles (lunes a viernes) del mes hasta la
--- fecha de corte * 8h, sin descontar feriados ni ausencias -- replica el
--- criterio que ya usaban a mano (siempre 160 en un mes de 20 dias
--- habiles), no el calendario de feriados particular de cada talento.
+-- Horas objetivo (Hour Target) son las horas PLANIFICADAS de cada
+-- talento: dias laborales del mes hasta la fecha de corte, segun SU
+-- calendario de feriados, menos SUS dias de ausencia aprobada (Dias
+-- Off) -- ya excluye vacaciones/licencias, por eso "Tiempo en Falta" no
+-- penaliza los dias que estuvo de baja aprobada (esos dias ya no cuentan
+-- en el objetivo).
 --
 -- Solo se debe exponer desde rutas requireAdmin() -- incluye tarifas.
 -- =====================================================================
@@ -139,8 +140,7 @@ BEGIN
     tv.tarifa,
     mon.codigo AS codigo_moneda,
     ROUND(COALESCE(ht.segundos, 0) / 3600, 2) AS horas_trabajadas,
-    (SELECT COUNT(*) FROM dias d WHERE d.fecha <= v_fecha_corte AND DAYOFWEEK(d.fecha) NOT IN (1, 7)) * 8
-      AS horas_objetivo,
+    (SELECT COUNT(*) FROM dias_laborales dl WHERE dl.id_usuario = a.id_usuario) * 8 AS horas_objetivo,
     (SELECT COUNT(*) FROM dias_ausencia da WHERE da.id_usuario = a.id_usuario) AS dias_off,
     GREATEST(
       0,
