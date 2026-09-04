@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, handleApiError } from "@/lib/apiHelpers";
-import { reporteFacturacionDetalleHoras, reporteFacturacionMensual } from "@/lib/services/reporteService";
+import {
+  estadoCierreFacturacion,
+  reporteFacturacionCierreDetalle,
+  reporteFacturacionDetalleHoras,
+  reporteFacturacionMensual,
+  reporteFacturacionMensualTarifaActual,
+} from "@/lib/services/reporteService";
 import { listarProyectos } from "@/lib/services/proyectoService";
 import { listarPerfiles } from "@/lib/services/perfilService";
 import { generarExcel, nombreArchivoReporte, primerYUltimoDiaMes, respuestaExcel } from "@/lib/excelExport";
@@ -17,14 +23,26 @@ export async function GET(req: NextRequest) {
   const idProyecto = params.get("idProyecto");
   const anio = params.get("anio");
   const mes = params.get("mes");
+  const tarifasActuales = params.get("tarifasActuales") === "1";
 
   if (!idProyecto || !anio || !mes) {
     return NextResponse.json({ error: "idProyecto, anio y mes son requeridos" }, { status: 400 });
   }
 
   try {
+    const estadoCierre = await estadoCierreFacturacion(Number(idProyecto), Number(anio), Number(mes));
+    const estaCerrado = estadoCierre?.cerrado === 1;
+
+    // Un mes cerrado siempre exporta el snapshot congelado (ignora
+    // tarifasActuales -- para eso primero hay que reabrirlo). Un mes
+    // abierto usa la tarifa vigente historicamente, salvo que se pida
+    // "regenerar con tarifas actuales".
     const [detalle, proyectos, detalleHoras] = await Promise.all([
-      reporteFacturacionMensual(Number(idProyecto), Number(anio), Number(mes), session.user.idEmpresa!),
+      estaCerrado
+        ? reporteFacturacionCierreDetalle(Number(idProyecto), Number(anio), Number(mes))
+        : tarifasActuales
+          ? reporteFacturacionMensualTarifaActual(Number(idProyecto), Number(anio), Number(mes), session.user.idEmpresa!)
+          : reporteFacturacionMensual(Number(idProyecto), Number(anio), Number(mes), session.user.idEmpresa!),
       listarProyectos(session.user.idUsuario, session.user.rol, session.user.idEmpresa!),
       reporteFacturacionDetalleHoras(Number(idProyecto), Number(anio), Number(mes), session.user.idEmpresa!),
     ]);

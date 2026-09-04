@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  EstadoCierreFacturacion,
   Proyecto,
   ProyeccionRow,
   ReporteClasesPorGrupo,
@@ -87,6 +88,12 @@ export default function ReportesClient({
   const [buscoResumen, setBuscoResumen] = useState(false);
   const [enviandoRecordatorio, setEnviandoRecordatorio] = useState<Set<number>>(new Set());
   const [mensajeRecordatorio, setMensajeRecordatorio] = useState<string | null>(null);
+
+  // Cierre de mes del reporte de facturacion (congela tarifas/horas para
+  // que una correccion posterior no afecte un mes ya facturado)
+  const [cierreFacturacion, setCierreFacturacion] = useState<EstadoCierreFacturacion | null>(null);
+  const [cargandoCierre, setCargandoCierre] = useState(false);
+  const [procesandoCierre, setProcesandoCierre] = useState(false);
 
   // Proyeccion por cliente (solo Admin)
   const clientesUnicos = useMemo(() => {
@@ -212,15 +219,17 @@ export default function ReportesClient({
     descargarExcel(`/api/reportes/costos/exportar?${params.toString()}`, nombreReporte("Costs", primero, ultimo));
   }
 
-  function exportarResumen() {
+  function exportarResumen(tarifasActuales = false) {
     if (!resumenIdProyecto) return;
     const params = new URLSearchParams({
       idProyecto: resumenIdProyecto,
       anio: String(resumenAnio),
       mes: String(resumenMes),
     });
+    if (tarifasActuales) params.set("tarifasActuales", "1");
     const { primero, ultimo } = primerYUltimoDiaMes(resumenAnio, resumenMes);
-    descargarExcel(`/api/reportes/resumen/exportar?${params.toString()}`, nombreReporte("Billing", primero, ultimo));
+    const tipo = tarifasActuales ? "BillingCurrentRates" : "Billing";
+    descargarExcel(`/api/reportes/resumen/exportar?${params.toString()}`, nombreReporte(tipo, primero, ultimo));
   }
 
   function exportarProyeccion() {
@@ -267,12 +276,68 @@ export default function ReportesClient({
     setCargandoCostos(false);
   }
 
+  async function cargarCierreFacturacion() {
+    if (!resumenIdProyecto) return;
+    setCargandoCierre(true);
+    try {
+      const params = new URLSearchParams({
+        idProyecto: resumenIdProyecto,
+        anio: String(resumenAnio),
+        mes: String(resumenMes),
+      });
+      setCierreFacturacion(
+        await fetchJson<EstadoCierreFacturacion>(`/api/reportes/facturacion/cierre?${params.toString()}`)
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo consultar el estado del cierre");
+    }
+    setCargandoCierre(false);
+  }
+
+  async function cerrarMesFacturacionAccion() {
+    if (!resumenIdProyecto) return;
+    setProcesandoCierre(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/reportes/facturacion/cierre", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idProyecto: Number(resumenIdProyecto), anio: resumenAnio, mes: resumenMes }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      await cargarCierreFacturacion();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo cerrar el mes");
+    }
+    setProcesandoCierre(false);
+  }
+
+  async function reabrirMesFacturacionAccion() {
+    if (!resumenIdProyecto) return;
+    setProcesandoCierre(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({
+        idProyecto: resumenIdProyecto,
+        anio: String(resumenAnio),
+        mes: String(resumenMes),
+      });
+      const res = await fetch(`/api/reportes/facturacion/cierre?${params.toString()}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).error);
+      await cargarCierreFacturacion();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo reabrir el mes");
+    }
+    setProcesandoCierre(false);
+  }
+
   async function buscarResumen() {
     if (!resumenIdProyecto) return;
     setCargandoResumen(true);
     setBuscoResumen(true);
     setError(null);
     setMensajeRecordatorio(null);
+    cargarCierreFacturacion();
     try {
       const params = new URLSearchParams({
         idProyecto: resumenIdProyecto,
@@ -840,7 +905,7 @@ export default function ReportesClient({
               Generar resumen
             </button>
             <button
-              onClick={exportarResumen}
+              onClick={() => exportarResumen()}
               disabled={exportando || !buscoResumen || filasResumen.length === 0}
               className="inline-flex items-center gap-2 rounded-md border border-gray-300 text-sm font-medium px-4 py-2 disabled:opacity-50"
               title="Detalle por talento + facturacion agrupada por rate + detalle de horas registradas"
@@ -848,7 +913,46 @@ export default function ReportesClient({
               {exportando && <Spinner />}
               Exportar facturacion (Excel)
             </button>
+            {!cierreFacturacion?.cerrado && (
+              <button
+                onClick={() => exportarResumen(true)}
+                disabled={exportando || !buscoResumen || filasResumen.length === 0}
+                className="inline-flex items-center gap-2 rounded-md border border-gray-300 text-sm font-medium px-4 py-2 disabled:opacity-50"
+                title="Recalcula usando el perfil/tarifa vigente HOY para todo el mes, por si se corrigio una tarifa despues"
+              >
+                {exportando && <Spinner />}
+                Regenerar con tarifas actuales
+              </button>
+            )}
           </div>
+
+          {buscoResumen && !cargandoCierre && (
+            <div
+              className={`rounded-md border px-4 py-2.5 text-sm flex flex-wrap items-center justify-between gap-2 ${
+                cierreFacturacion?.cerrado
+                  ? "border-green-300 bg-green-50 text-green-800"
+                  : "border-amber-300 bg-amber-50 text-amber-800"
+              }`}
+            >
+              <span>
+                {cierreFacturacion?.cerrado
+                  ? `🔒 Mes cerrado el ${cierreFacturacion.fecha_cierre.slice(0, 10)} por ${cierreFacturacion.cerrado_por} -- la facturacion exportada queda congelada, no cambia si se corrige una tarifa despues.`
+                  : "🔓 Mes abierto -- la facturacion se recalcula en vivo cada vez que se exporta (usa la tarifa vigente historicamente en cada fecha)."}
+              </span>
+              <button
+                onClick={cierreFacturacion?.cerrado ? reabrirMesFacturacionAccion : cerrarMesFacturacionAccion}
+                disabled={procesandoCierre}
+                className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-xs font-medium disabled:opacity-50 ${
+                  cierreFacturacion?.cerrado
+                    ? "border-green-300 bg-white text-green-700 hover:bg-green-100"
+                    : "border-amber-300 bg-white text-amber-700 hover:bg-amber-100"
+                }`}
+              >
+                {procesandoCierre && <Spinner className="h-3 w-3" />}
+                {cierreFacturacion?.cerrado ? "Reabrir mes" : "Cerrar mes"}
+              </button>
+            </div>
+          )}
 
           {mensajeRecordatorio && <p className="text-sm text-green-700">{mensajeRecordatorio}</p>}
 

@@ -1,5 +1,6 @@
 import { executeProcedure } from "@/lib/db";
 import {
+  EstadoCierreFacturacion,
   ProyeccionRow,
   ReporteCostoRow,
   ReporteDetalleRow,
@@ -93,6 +94,62 @@ export function reporteFacturacionDetalleHoras(idProyecto: number, anio: number,
     mes,
     idEmpresaActor,
   ]);
+}
+
+// Variante de reporteFacturacionMensual que usa el perfil/tarifa vigente
+// HOY para todo el mes, en vez del vigente historicamente a la fecha de
+// corte -- para el boton "Regenerar con tarifas actuales".
+export function reporteFacturacionMensualTarifaActual(
+  idProyecto: number,
+  anio: number,
+  mes: number,
+  idEmpresaActor: number
+) {
+  return executeProcedure<ReporteFacturacionRow>("sp_reporte_facturacion_mensual_tarifa_actual", [
+    idProyecto,
+    anio,
+    mes,
+    idEmpresaActor,
+  ]);
+}
+
+export async function estadoCierreFacturacion(idProyecto: number, anio: number, mes: number) {
+  const rows = await executeProcedure<EstadoCierreFacturacion>("sp_facturacion_mes_estado", [
+    idProyecto,
+    anio,
+    mes,
+  ]);
+  return rows[0] ?? null;
+}
+
+export function cerrarMesFacturacion(
+  idProyecto: number,
+  anio: number,
+  mes: number,
+  idEmpresaActor: number,
+  cerradoPor: string
+) {
+  return executeProcedure<{ id_cierre: number }>("sp_facturacion_mes_cerrar", [
+    idProyecto,
+    anio,
+    mes,
+    idEmpresaActor,
+    cerradoPor,
+  ]);
+}
+
+export function reabrirMesFacturacion(
+  idProyecto: number,
+  anio: number,
+  mes: number,
+  idEmpresaActor: number,
+  modificadoPor: string
+) {
+  return executeProcedure("sp_facturacion_mes_reabrir", [idProyecto, anio, mes, idEmpresaActor, modificadoPor]);
+}
+
+export function reporteFacturacionCierreDetalle(idProyecto: number, anio: number, mes: number) {
+  return executeProcedure<ReporteFacturacionRow>("sp_facturacion_cierre_detalle_listar", [idProyecto, anio, mes]);
 }
 
 export function reporteProyeccionCliente(

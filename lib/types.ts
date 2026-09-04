@@ -381,7 +381,13 @@ export interface ReporteFacturacionRow {
   horas_objetivo: number;
   dias_off: number;
   dias_fault: number;
-  fecha_corte: string;
+  fecha_corte?: string;
+}
+
+export interface EstadoCierreFacturacion {
+  cerrado: number;
+  cerrado_por: string;
+  fecha_cierre: string;
 }
 
 export interface ResumenAvanceRow {
