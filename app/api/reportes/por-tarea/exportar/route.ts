@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession, handleApiError } from "@/lib/apiHelpers";
 import { reporteTiempoPorTarea } from "@/lib/services/reporteService";
-import { generarExcel, respuestaExcel } from "@/lib/excelExport";
+import { generarExcel, nombreArchivoReporte, respuestaExcel } from "@/lib/excelExport";
 
 export async function GET(req: NextRequest) {
   const session = await requireSession();
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
       },
     ]);
 
-    return respuestaExcel(buffer, `horas_por_tarea_${fechaInicio}_${fechaFin}.xlsx`);
+    return respuestaExcel(buffer, nombreArchivoReporte("ByTask", fechaInicio, fechaFin));
   } catch (err) {
     return handleApiError(err);
   }

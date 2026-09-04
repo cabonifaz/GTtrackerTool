@@ -160,6 +160,24 @@ export default function ReportesClient({
     buscar(nueva);
   }
 
+  // Nombre de archivo consistente para todas las exportaciones de
+  // Reportes: Qronos_Report_<Tipo>_DD_MM_YYYY-DD_MM_YYYY.xlsx
+  function aDDMMYYYY(fechaISO: string) {
+    const [y, m, d] = fechaISO.slice(0, 10).split("-");
+    return `${d}_${m}_${y}`;
+  }
+
+  function nombreReporte(tipo: string, fechaInicio: string, fechaFin: string) {
+    return `Qronos_Report_${tipo}_${aDDMMYYYY(fechaInicio)}-${aDDMMYYYY(fechaFin)}.xlsx`;
+  }
+
+  function primerYUltimoDiaMes(anio: number, mes: number) {
+    const primero = `${anio}-${String(mes).padStart(2, "0")}-01`;
+    const finMes = new Date(anio, mes, 0);
+    const ultimo = `${finMes.getFullYear()}-${String(finMes.getMonth() + 1).padStart(2, "0")}-${String(finMes.getDate()).padStart(2, "0")}`;
+    return { primero, ultimo };
+  }
+
   // Dispara la descarga de un .xlsx ya generado por el server -- comun a
   // todas las exportaciones de Reportes, cada una solo arma su URL.
   async function descargarExcel(url: string, nombreArchivo: string) {
@@ -183,14 +201,15 @@ export default function ReportesClient({
 
   function exportar() {
     const endpoint = vista === "detalle" ? "/api/reportes/exportar" : "/api/reportes/por-tarea/exportar";
-    const sufijo = vista === "detalle" ? "" : "_por_tarea";
-    descargarExcel(`${endpoint}?${queryString()}`, `horas${sufijo}_${fechaInicio}_${fechaFin}.xlsx`);
+    const tipo = vista === "detalle" ? "Detailed" : "ByTask";
+    descargarExcel(`${endpoint}?${queryString()}`, nombreReporte(tipo, fechaInicio, fechaFin));
   }
 
   function exportarCostos() {
     if (!costoIdProyecto) return;
     const params = new URLSearchParams({ idProyecto: costoIdProyecto, anio: String(costoAnio), mes: String(costoMes) });
-    descargarExcel(`/api/reportes/costos/exportar?${params.toString()}`, `costos_${costoAnio}_${costoMes}.xlsx`);
+    const { primero, ultimo } = primerYUltimoDiaMes(costoAnio, costoMes);
+    descargarExcel(`/api/reportes/costos/exportar?${params.toString()}`, nombreReporte("Costs", primero, ultimo));
   }
 
   function exportarResumen() {
@@ -200,10 +219,8 @@ export default function ReportesClient({
       anio: String(resumenAnio),
       mes: String(resumenMes),
     });
-    descargarExcel(
-      `/api/reportes/resumen/exportar?${params.toString()}`,
-      `facturacion_${resumenAnio}_${resumenMes}.xlsx`
-    );
+    const { primero, ultimo } = primerYUltimoDiaMes(resumenAnio, resumenMes);
+    descargarExcel(`/api/reportes/resumen/exportar?${params.toString()}`, nombreReporte("Billing", primero, ultimo));
   }
 
   function exportarProyeccion() {
@@ -213,14 +230,22 @@ export default function ReportesClient({
       mesesAtras: String(proyeccionMesesAtras),
       mesesAdelante: String(proyeccionMesesAdelante),
     });
-    descargarExcel(`/api/reportes/proyeccion/exportar?${params.toString()}`, `proyeccion_${proyeccionIdCliente}.xlsx`);
+    const ahora = new Date();
+    const inicio = new Date(ahora.getFullYear(), ahora.getMonth() - proyeccionMesesAtras, 1);
+    const fin = new Date(ahora.getFullYear(), ahora.getMonth() + proyeccionMesesAdelante + 1, 0);
+    const aISO = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    descargarExcel(
+      `/api/reportes/proyeccion/exportar?${params.toString()}`,
+      nombreReporte("Projection", aISO(inicio), aISO(fin))
+    );
   }
 
   function exportarClases() {
     const params = new URLSearchParams({ fechaInicio: clasesFechaInicio, fechaFin: clasesFechaFin });
     descargarExcel(
       `/api/reportes/clases/exportar?${params.toString()}`,
-      `clases_${clasesFechaInicio}_${clasesFechaFin}.xlsx`
+      nombreReporte("Classes", clasesFechaInicio, clasesFechaFin)
     );
   }
 

@@ -32,6 +32,23 @@ export async function generarExcel(hojas: HojaExcel[]) {
   return workbook.xlsx.writeBuffer();
 }
 
+// Nombre de archivo consistente para todas las exportaciones de Reportes:
+// Qronos_Report_<Tipo>_DD_MM_YYYY-DD_MM_YYYY.xlsx
+export function nombreArchivoReporte(tipo: string, fechaInicio: string, fechaFin: string): string {
+  const aDDMMYYYY = (f: string) => {
+    const [y, m, d] = f.slice(0, 10).split("-");
+    return `${d}_${m}_${y}`;
+  };
+  return `Qronos_Report_${tipo}_${aDDMMYYYY(fechaInicio)}-${aDDMMYYYY(fechaFin)}.xlsx`;
+}
+
+export function primerYUltimoDiaMes(anio: number, mes: number): { primero: string; ultimo: string } {
+  const primero = `${anio}-${String(mes).padStart(2, "0")}-01`;
+  const finDeMes = new Date(anio, mes, 0);
+  const ultimo = `${finDeMes.getFullYear()}-${String(finDeMes.getMonth() + 1).padStart(2, "0")}-${String(finDeMes.getDate()).padStart(2, "0")}`;
+  return { primero, ultimo };
+}
+
 export function respuestaExcel(buffer: Awaited<ReturnType<typeof generarExcel>>, filename: string): NextResponse {
   return new NextResponse(buffer, {
     status: 200,

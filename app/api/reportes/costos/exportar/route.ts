@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, handleApiError } from "@/lib/apiHelpers";
 import { reporteCostosMensual } from "@/lib/services/reporteService";
-import { generarExcel, respuestaExcel } from "@/lib/excelExport";
+import { generarExcel, nombreArchivoReporte, primerYUltimoDiaMes, respuestaExcel } from "@/lib/excelExport";
 
 export async function GET(req: NextRequest) {
   const session = await requireAdmin();
@@ -42,7 +42,8 @@ export async function GET(req: NextRequest) {
       },
     ]);
 
-    return respuestaExcel(buffer, `costos_${anio}_${mes}.xlsx`);
+    const { primero, ultimo } = primerYUltimoDiaMes(Number(anio), Number(mes));
+    return respuestaExcel(buffer, nombreArchivoReporte("Costs", primero, ultimo));
   } catch (err) {
     return handleApiError(err);
   }

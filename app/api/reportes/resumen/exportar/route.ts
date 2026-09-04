@@ -3,12 +3,7 @@ import { requireAdmin, handleApiError } from "@/lib/apiHelpers";
 import { reporteFacturacionDetalleHoras, reporteFacturacionMensual } from "@/lib/services/reporteService";
 import { listarProyectos } from "@/lib/services/proyectoService";
 import { listarPerfiles } from "@/lib/services/perfilService";
-import { generarExcel, respuestaExcel } from "@/lib/excelExport";
-
-const MESES = [
-  "enero", "febrero", "marzo", "abril", "mayo", "junio",
-  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
-];
+import { generarExcel, nombreArchivoReporte, primerYUltimoDiaMes, respuestaExcel } from "@/lib/excelExport";
 
 // Reporte de facturacion mensual (formato pedido: hoja de detalle por
 // talento + hoja de facturacion agrupada por perfil/rate, replicando el
@@ -163,7 +158,8 @@ export async function GET(req: NextRequest) {
       },
     ]);
 
-    return respuestaExcel(buffer, `facturacion_${MESES[Number(mes) - 1]}_${anio}.xlsx`);
+    const { primero, ultimo } = primerYUltimoDiaMes(Number(anio), Number(mes));
+    return respuestaExcel(buffer, nombreArchivoReporte("Billing", primero, ultimo));
   } catch (err) {
     return handleApiError(err);
   }

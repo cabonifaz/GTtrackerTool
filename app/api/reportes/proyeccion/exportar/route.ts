@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, handleApiError } from "@/lib/apiHelpers";
 import { reporteProyeccionCliente } from "@/lib/services/reporteService";
-import { generarExcel, respuestaExcel } from "@/lib/excelExport";
+import { generarExcel, nombreArchivoReporte, respuestaExcel } from "@/lib/excelExport";
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -21,11 +21,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "idCliente es requerido" }, { status: 400 });
   }
 
+  const numMesesAtras = Number(mesesAtras ?? 3);
+  const numMesesAdelante = Number(mesesAdelante ?? 6);
+
   try {
     const filas = await reporteProyeccionCliente(
       Number(idCliente),
-      Number(mesesAtras ?? 3),
-      Number(mesesAdelante ?? 6),
+      numMesesAtras,
+      numMesesAdelante,
       session.user.idEmpresa!
     );
 
@@ -55,7 +58,12 @@ export async function GET(req: NextRequest) {
       },
     ]);
 
-    return respuestaExcel(buffer, `proyeccion_cliente_${idCliente}.xlsx`);
+    const ahora = new Date();
+    const inicioRango = new Date(ahora.getFullYear(), ahora.getMonth() - numMesesAtras, 1);
+    const finRango = new Date(ahora.getFullYear(), ahora.getMonth() + numMesesAdelante + 1, 0);
+    const aISO = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return respuestaExcel(buffer, nombreArchivoReporte("Projection", aISO(inicioRango), aISO(finRango)));
   } catch (err) {
     return handleApiError(err);
   }
