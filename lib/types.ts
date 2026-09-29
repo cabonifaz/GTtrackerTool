@@ -431,6 +431,32 @@ export interface SaldoVacaciones {
   dias_usados: number;
 }
 
+export interface HoraExtra {
+  id_hora_extra: number;
+  fecha: string;
+  horas: number;
+  motivo: string | null;
+  codigo_estado: string;
+  estado: string;
+  aprobado_por: string | null;
+  fecha_aprobacion: string | null;
+  motivo_rechazo: string | null;
+  fecha_creacion: string;
+}
+
+export interface HoraExtraAdmin extends HoraExtra {
+  id_usuario: number;
+  colaborador: string;
+}
+
+export interface SaldoCompensatorio {
+  id_usuario: number;
+  horas_acumuladas: number;
+  horas_consumidas: number;
+  horas_disponibles: number;
+  dias_disponibles: number;
+}
+
 export interface ProyeccionRow {
   anio: number;
   mes: number;

@@ -6,6 +6,7 @@ import {
   listarAusenciasTodas,
   obtenerSaldoVacaciones,
 } from "@/lib/services/ausenciaService";
+import { listarHorasExtraPorUsuario, obtenerSaldoCompensatorio } from "@/lib/services/horaExtraService";
 import { listarUsuarios } from "@/lib/services/usuarioService";
 import DiasOffClient from "./dias-off-client";
 
@@ -16,10 +17,12 @@ export default async function DiasOffPage() {
   const idEmpresa = session!.user.idEmpresa!;
   const anioActual = new Date().getFullYear();
 
-  const [tipos, misAusencias, saldo, pendientes, talentos] = await Promise.all([
+  const [tipos, misAusencias, saldo, misHorasExtra, saldoCompensatorio, pendientes, talentos] = await Promise.all([
     listarMaestro("TIPO_AUSENCIA"),
     esAdmin ? Promise.resolve([]) : listarAusenciasPorUsuario(idUsuario),
     esAdmin ? Promise.resolve(null) : obtenerSaldoVacaciones(idUsuario, anioActual, idEmpresa),
+    esAdmin ? Promise.resolve([]) : listarHorasExtraPorUsuario(idUsuario),
+    esAdmin ? Promise.resolve(null) : obtenerSaldoCompensatorio(idUsuario, idEmpresa),
     esAdmin ? listarAusenciasTodas(null, "PENDIENTE", idEmpresa) : Promise.resolve([]),
     esAdmin ? listarUsuarios(idEmpresa) : Promise.resolve([]),
   ]);
@@ -30,6 +33,8 @@ export default async function DiasOffPage() {
       tiposIniciales={tipos}
       misAusenciasIniciales={misAusencias}
       saldoInicial={saldo}
+      misHorasExtraIniciales={misHorasExtra}
+      saldoCompensatorioInicial={saldoCompensatorio}
       pendientesIniciales={pendientes}
       talentosIniciales={talentos.filter((u) => u.activo)}
       anioActual={anioActual}

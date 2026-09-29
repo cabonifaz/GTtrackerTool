@@ -1,13 +1,22 @@
 "use client";
 
 import { useRef, useState, FormEvent } from "react";
-import { Ausencia, AusenciaAdmin, MaestroItem, SaldoVacaciones, Usuario } from "@/lib/types";
+import {
+  Ausencia,
+  AusenciaAdmin,
+  HoraExtra,
+  HoraExtraAdmin,
+  MaestroItem,
+  SaldoCompensatorio,
+  SaldoVacaciones,
+  Usuario,
+} from "@/lib/types";
 import { CargandoInline, Spinner } from "@/components/Spinner";
 import BuscadorTalento from "@/components/BuscadorTalento";
 import SelectorTalentosMultiple from "@/components/SelectorTalentosMultiple";
 import { fetchJson } from "@/lib/fetchJson";
 
-type TabAdmin = "solicitudes" | "saldos";
+type TabAdmin = "solicitudes" | "horasExtra" | "saldos";
 
 const ESTADOS_FILTRO = [
   { codigo: "PENDIENTE", label: "Pendientes" },
@@ -27,6 +36,8 @@ export default function DiasOffClient({
   tiposIniciales,
   misAusenciasIniciales,
   saldoInicial,
+  misHorasExtraIniciales,
+  saldoCompensatorioInicial,
   pendientesIniciales,
   talentosIniciales,
   anioActual,
@@ -35,6 +46,8 @@ export default function DiasOffClient({
   tiposIniciales: MaestroItem[];
   misAusenciasIniciales: Ausencia[];
   saldoInicial: SaldoVacaciones | null;
+  misHorasExtraIniciales: HoraExtra[];
+  saldoCompensatorioInicial: SaldoCompensatorio | null;
   pendientesIniciales: AusenciaAdmin[];
   talentosIniciales: Usuario[];
   anioActual: number;
@@ -47,6 +60,11 @@ export default function DiasOffClient({
   const [saldo, setSaldo] = useState<SaldoVacaciones | null>(saldoInicial);
   const [enviandoSolicitud, setEnviandoSolicitud] = useState(false);
   const evidenciaRef = useRef<HTMLInputElement>(null);
+
+  // Horas extra / saldo compensatorio (talento)
+  const [misHorasExtra, setMisHorasExtra] = useState<HoraExtra[]>(misHorasExtraIniciales);
+  const [saldoCompensatorio, setSaldoCompensatorio] = useState<SaldoCompensatorio | null>(saldoCompensatorioInicial);
+  const [enviandoHoraExtra, setEnviandoHoraExtra] = useState(false);
 
   // Admin
   const [tabAdmin, setTabAdmin] = useState<TabAdmin>("solicitudes");
@@ -68,6 +86,19 @@ export default function DiasOffClient({
   const [diasAsignadosForm, setDiasAsignadosForm] = useState("");
   const [guardandoSaldo, setGuardandoSaldo] = useState(false);
   const [cargandoSaldoAdmin, setCargandoSaldoAdmin] = useState(false);
+  const [saldoCompensatorioAdmin, setSaldoCompensatorioAdmin] = useState<SaldoCompensatorio | null>(null);
+
+  // Horas extra (admin)
+  const [horasExtraAdmin, setHorasExtraAdmin] = useState<HoraExtraAdmin[]>([]);
+  const [filtroEstadoHorasExtra, setFiltroEstadoHorasExtra] = useState("PENDIENTE");
+  const [idsFiltroTalentoHorasExtra, setIdsFiltroTalentoHorasExtra] = useState<number[]>([]);
+  const [cargandoHorasExtraAdmin, setCargandoHorasExtraAdmin] = useState(false);
+  const [procesandoIdHorasExtra, setProcesandoIdHorasExtra] = useState<number | null>(null);
+  const [rechazandoIdHorasExtra, setRechazandoIdHorasExtra] = useState<number | null>(null);
+  const [motivoRechazoHorasExtra, setMotivoRechazoHorasExtra] = useState("");
+  const [mostrandoFormRegistroHorasExtra, setMostrandoFormRegistroHorasExtra] = useState(false);
+  const [idTalentoRegistroHorasExtra, setIdTalentoRegistroHorasExtra] = useState<number | null>(null);
+  const [enviandoRegistroHorasExtra, setEnviandoRegistroHorasExtra] = useState(false);
 
   async function recargarMisAusencias() {
     try {
@@ -93,6 +124,40 @@ export default function DiasOffClient({
     formEl.reset();
     await recargarMisAusencias();
     setEnviandoSolicitud(false);
+  }
+
+  async function recargarMisHorasExtra() {
+    try {
+      setMisHorasExtra(await fetchJson<HoraExtra[]>("/api/horas-extra"));
+      setSaldoCompensatorio(await fetchJson<SaldoCompensatorio>("/api/horas-extra/saldo"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudieron recargar tus horas extra");
+    }
+  }
+
+  async function solicitarHoraExtra(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setEnviandoHoraExtra(true);
+    const formEl = e.currentTarget;
+    const form = new FormData(formEl);
+    const res = await fetch("/api/horas-extra", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fecha: form.get("fecha"),
+        horas: Number(form.get("horas")),
+        motivo: form.get("motivo") || null,
+      }),
+    });
+    if (!res.ok) {
+      setError((await res.json()).error);
+      setEnviandoHoraExtra(false);
+      return;
+    }
+    formEl.reset();
+    await recargarMisHorasExtra();
+    setEnviandoHoraExtra(false);
   }
 
   async function buscarAusenciasAdmin() {
@@ -167,6 +232,86 @@ export default function DiasOffClient({
     setProcesandoId(null);
   }
 
+  async function buscarHorasExtraAdmin() {
+    setCargandoHorasExtraAdmin(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (filtroEstadoHorasExtra) params.set("estado", filtroEstadoHorasExtra);
+      if (idsFiltroTalentoHorasExtra.length > 0) params.set("idsUsuario", idsFiltroTalentoHorasExtra.join(","));
+      setHorasExtraAdmin(await fetchJson<HoraExtraAdmin[]>(`/api/horas-extra/todas?${params.toString()}`));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudieron cargar las horas extra");
+    }
+    setCargandoHorasExtraAdmin(false);
+  }
+
+  function alternarFiltroTalentoHorasExtra(id: number) {
+    setIdsFiltroTalentoHorasExtra((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  async function registrarHoraExtraAdmin(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    if (!idTalentoRegistroHorasExtra) {
+      setError("Busca y selecciona un talento");
+      return;
+    }
+    setEnviandoRegistroHorasExtra(true);
+    const formEl = e.currentTarget;
+    const form = new FormData(formEl);
+    const res = await fetch("/api/horas-extra/admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        idUsuario: idTalentoRegistroHorasExtra,
+        fecha: form.get("fecha"),
+        horas: Number(form.get("horas")),
+        motivo: form.get("motivo") || null,
+      }),
+    });
+    if (!res.ok) {
+      setError((await res.json()).error);
+      setEnviandoRegistroHorasExtra(false);
+      return;
+    }
+    formEl.reset();
+    setIdTalentoRegistroHorasExtra(null);
+    setMostrandoFormRegistroHorasExtra(false);
+    await buscarHorasExtraAdmin();
+    setEnviandoRegistroHorasExtra(false);
+  }
+
+  async function aprobarHoraExtra(id: number) {
+    setProcesandoIdHorasExtra(id);
+    setError(null);
+    const res = await fetch(`/api/horas-extra/${id}/aprobar`, { method: "POST" });
+    if (!res.ok) {
+      setError((await res.json()).error);
+    } else {
+      await buscarHorasExtraAdmin();
+    }
+    setProcesandoIdHorasExtra(null);
+  }
+
+  async function rechazarHoraExtra(id: number) {
+    setProcesandoIdHorasExtra(id);
+    setError(null);
+    const res = await fetch(`/api/horas-extra/${id}/rechazar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ motivoRechazo: motivoRechazoHorasExtra || null }),
+    });
+    if (!res.ok) {
+      setError((await res.json()).error);
+    } else {
+      setRechazandoIdHorasExtra(null);
+      setMotivoRechazoHorasExtra("");
+      await buscarHorasExtraAdmin();
+    }
+    setProcesandoIdHorasExtra(null);
+  }
+
   async function buscarSaldoAdmin() {
     if (!saldoTalentoId) return;
     setCargandoSaldoAdmin(true);
@@ -177,6 +322,9 @@ export default function DiasOffClient({
       );
       setSaldoAdmin(s);
       setDiasAsignadosForm(String(s.dias_asignados));
+      setSaldoCompensatorioAdmin(
+        await fetchJson<SaldoCompensatorio>(`/api/horas-extra/saldo?idUsuario=${saldoTalentoId}`)
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cargar el saldo");
     }
@@ -216,19 +364,51 @@ export default function DiasOffClient({
 
       {!esAdmin && (
         <>
-          {saldo && (
+          {(saldo || saldoCompensatorio) && (
             <div className="rounded-lg border border-gray-200 bg-white p-4 flex flex-wrap gap-8">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                  Vacaciones {anioActual}
-                </p>
-                <p className="text-2xl font-semibold tabular-nums">
-                  {Number(saldo.dias_asignados) - Number(saldo.dias_usados)} dias disponibles
-                </p>
-                <p className="text-xs text-gray-400">
-                  {saldo.dias_usados} usados de {saldo.dias_asignados} asignados
-                </p>
-              </div>
+              {saldo && (
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    Vacaciones {anioActual}
+                  </p>
+                  <p className="text-2xl font-semibold tabular-nums">
+                    {Number(saldo.dias_asignados) - Number(saldo.dias_usados)} dias disponibles
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {saldo.dias_usados} usados de {saldo.dias_asignados} asignados
+                  </p>
+                </div>
+              )}
+              {saldoCompensatorio && (
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Dias compensatorios</p>
+                  {Number(saldoCompensatorio.dias_disponibles) >= 0 ? (
+                    <>
+                      <p className="text-2xl font-semibold tabular-nums">
+                        {Number(saldoCompensatorio.dias_disponibles).toFixed(2)} dias disponibles
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {Number(saldoCompensatorio.horas_disponibles).toFixed(2)}h de saldo -- puedes solicitar
+                        hasta eso en dias libres compensatorios
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-2xl font-semibold tabular-nums text-red-600">
+                        Debes {Math.abs(Number(saldoCompensatorio.dias_disponibles)).toFixed(2)} dias
+                      </p>
+                      <p className="text-xs text-red-500">
+                        Tomaste dias compensatorios por adelantado ({Math.abs(Number(saldoCompensatorio.horas_disponibles)).toFixed(2)}h)
+                        -- se descuentan de tus proximas horas extra aprobadas
+                      </p>
+                    </>
+                  )}
+                  <p className="text-xs text-gray-400">
+                    {Number(saldoCompensatorio.horas_acumuladas).toFixed(2)}h acumuladas -{" "}
+                    {Number(saldoCompensatorio.horas_consumidas).toFixed(2)}h consumidas
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -336,6 +516,82 @@ export default function DiasOffClient({
               </tbody>
             </table>
           </div>
+
+          <form
+            onSubmit={solicitarHoraExtra}
+            className="rounded-lg border border-gray-200 bg-white p-4 grid gap-2 sm:grid-cols-2"
+          >
+            <p className="text-sm font-medium sm:col-span-2">
+              Solicitar horas extra (para acumular saldo compensatorio)
+            </p>
+            <div className="space-y-1">
+              <label className="text-xs text-gray-500">Fecha</label>
+              <input
+                type="date"
+                name="fecha"
+                required
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-gray-500">Horas extra</label>
+              <input
+                type="number"
+                name="horas"
+                step="0.5"
+                min="0.5"
+                required
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <input
+              name="motivo"
+              placeholder="Motivo (opcional)"
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm sm:col-span-2"
+            />
+            <button
+              disabled={enviandoHoraExtra}
+              className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50 sm:col-span-2 sm:w-fit"
+            >
+              {enviandoHoraExtra && <Spinner />}
+              Enviar solicitud
+            </button>
+          </form>
+
+          <div className="rounded-lg border border-gray-200 bg-white overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-left text-gray-500">
+                <tr>
+                  <th className="px-4 py-2 font-medium">Fecha</th>
+                  <th className="px-4 py-2 font-medium text-right">Horas</th>
+                  <th className="px-4 py-2 font-medium">Motivo</th>
+                  <th className="px-4 py-2 font-medium">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {misHorasExtra.map((h) => (
+                  <tr key={h.id_hora_extra}>
+                    <td className="px-4 py-2 text-gray-500">{h.fecha.slice(0, 10)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{Number(h.horas).toFixed(2)}</td>
+                    <td className="px-4 py-2 text-gray-500">
+                      {h.motivo ?? "-"}
+                      {h.codigo_estado === "RECHAZADA" && h.motivo_rechazo && (
+                        <span className="block text-xs text-red-500">Motivo rechazo: {h.motivo_rechazo}</span>
+                      )}
+                    </td>
+                    <td className={`px-4 py-2 font-medium ${badgeEstado(h.codigo_estado)}`}>{h.estado}</td>
+                  </tr>
+                ))}
+                {misHorasExtra.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-6 text-center text-gray-400">
+                      Sin solicitudes de horas extra registradas
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
 
@@ -353,6 +609,16 @@ export default function DiasOffClient({
               Solicitudes
             </button>
             <button
+              onClick={() => setTabAdmin("horasExtra")}
+              className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
+                tabAdmin === "horasExtra"
+                  ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+                  : "border-transparent text-gray-500"
+              }`}
+            >
+              Horas extra
+            </button>
+            <button
               onClick={() => setTabAdmin("saldos")}
               className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
                 tabAdmin === "saldos"
@@ -360,7 +626,7 @@ export default function DiasOffClient({
                   : "border-transparent text-gray-500"
               }`}
             >
-              Saldos de vacaciones
+              Saldos
             </button>
           </div>
 
@@ -571,6 +837,185 @@ export default function DiasOffClient({
             </div>
           )}
 
+          {tabAdmin === "horasExtra" && (
+            <div className="space-y-4">
+              {!mostrandoFormRegistroHorasExtra ? (
+                <button
+                  onClick={() => setMostrandoFormRegistroHorasExtra(true)}
+                  className="text-sm text-[var(--color-primario)] underline"
+                >
+                  + Registrar horas extra
+                </button>
+              ) : (
+                <form
+                  onSubmit={registrarHoraExtraAdmin}
+                  className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3"
+                >
+                  <p className="text-sm font-medium">Registrar horas extra ya reconocidas (quedan aprobadas)</p>
+                  <BuscadorTalento
+                    talentos={talentos}
+                    idSeleccionado={idTalentoRegistroHorasExtra}
+                    onSeleccionar={setIdTalentoRegistroHorasExtra}
+                  />
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="text-xs text-gray-500">Fecha</label>
+                      <input
+                        type="date"
+                        name="fecha"
+                        required
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-gray-500">Horas extra</label>
+                      <input
+                        type="number"
+                        name="horas"
+                        step="0.5"
+                        min="0.5"
+                        required
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <input
+                      name="motivo"
+                      placeholder="Motivo (opcional)"
+                      className="rounded-md border border-gray-300 px-3 py-2 text-sm sm:col-span-2"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      disabled={enviandoRegistroHorasExtra}
+                      className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+                    >
+                      {enviandoRegistroHorasExtra && <Spinner />}
+                      Registrar (queda aprobada)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMostrandoFormRegistroHorasExtra(false)}
+                      className="text-sm text-gray-500 underline"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Estado</label>
+                    <select
+                      value={filtroEstadoHorasExtra}
+                      onChange={(e) => setFiltroEstadoHorasExtra(e.target.value)}
+                      className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    >
+                      {ESTADOS_FILTRO.map((e) => (
+                        <option key={e.codigo} value={e.codigo}>
+                          {e.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    onClick={buscarHorasExtraAdmin}
+                    disabled={cargandoHorasExtraAdmin}
+                    className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+                  >
+                    {cargandoHorasExtraAdmin && <Spinner />}
+                    Buscar
+                  </button>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Talentos (vacio = todos)</label>
+                  <SelectorTalentosMultiple
+                    talentos={talentos}
+                    idsSeleccionados={idsFiltroTalentoHorasExtra}
+                    onAlternar={alternarFiltroTalentoHorasExtra}
+                    todosLosUsuarios={talentos}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-white overflow-x-auto">
+                {cargandoHorasExtraAdmin ? (
+                  <CargandoInline texto="Buscando solicitudes..." />
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-left text-gray-500">
+                      <tr>
+                        <th className="px-4 py-2 font-medium">Colaborador</th>
+                        <th className="px-4 py-2 font-medium">Fecha</th>
+                        <th className="px-4 py-2 font-medium text-right">Horas</th>
+                        <th className="px-4 py-2 font-medium">Motivo</th>
+                        <th className="px-4 py-2 font-medium">Estado</th>
+                        <th className="px-4 py-2 font-medium"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {horasExtraAdmin.map((h) => (
+                        <tr key={h.id_hora_extra}>
+                          <td className="px-4 py-2">{h.colaborador}</td>
+                          <td className="px-4 py-2 text-gray-500">{h.fecha.slice(0, 10)}</td>
+                          <td className="px-4 py-2 text-right tabular-nums">{Number(h.horas).toFixed(2)}</td>
+                          <td className="px-4 py-2 text-gray-500">{h.motivo ?? "-"}</td>
+                          <td className={`px-4 py-2 font-medium ${badgeEstado(h.codigo_estado)}`}>{h.estado}</td>
+                          <td className="px-4 py-2 whitespace-nowrap">
+                            {h.codigo_estado === "PENDIENTE" && (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => aprobarHoraExtra(h.id_hora_extra)}
+                                  disabled={procesandoIdHorasExtra === h.id_hora_extra}
+                                  className="inline-flex items-center gap-1 text-green-700 underline disabled:opacity-50"
+                                >
+                                  {procesandoIdHorasExtra === h.id_hora_extra && <Spinner className="h-3 w-3" />}
+                                  Aprobar
+                                </button>
+                                {rechazandoIdHorasExtra === h.id_hora_extra ? (
+                                  <span className="inline-flex items-center gap-1">
+                                    <input
+                                      value={motivoRechazoHorasExtra}
+                                      onChange={(e) => setMotivoRechazoHorasExtra(e.target.value)}
+                                      placeholder="Motivo"
+                                      className="w-32 rounded-md border border-gray-300 px-2 py-1 text-xs"
+                                    />
+                                    <button
+                                      onClick={() => rechazarHoraExtra(h.id_hora_extra)}
+                                      disabled={procesandoIdHorasExtra === h.id_hora_extra}
+                                      className="text-red-700 underline disabled:opacity-50"
+                                    >
+                                      Confirmar
+                                    </button>
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() => setRechazandoIdHorasExtra(h.id_hora_extra)}
+                                    className="text-red-700 underline"
+                                  >
+                                    Rechazar
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      {horasExtraAdmin.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
+                            Sin solicitudes para este filtro
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          )}
+
           {tabAdmin === "saldos" && (
             <div className="space-y-4">
               <div className="rounded-lg border border-gray-200 bg-white p-4 flex flex-wrap items-end gap-3">
@@ -610,6 +1055,7 @@ export default function DiasOffClient({
 
               {saldoAdmin && (
                 <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
+                  <p className="text-sm font-medium">Vacaciones</p>
                   <p className="text-sm text-gray-600">
                     Usados: <strong>{saldoAdmin.dias_usados}</strong> de{" "}
                     <strong>{saldoAdmin.dias_asignados}</strong> asignados (
@@ -636,6 +1082,27 @@ export default function DiasOffClient({
                       Guardar
                     </button>
                   </div>
+                </div>
+              )}
+
+              {saldoCompensatorioAdmin && (
+                <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-1">
+                  <p className="text-sm font-medium">Dias compensatorios</p>
+                  <p className="text-sm text-gray-600">
+                    {Number(saldoCompensatorioAdmin.horas_acumuladas).toFixed(2)}h acumuladas de horas extra
+                    aprobadas -{" "}
+                    {Number(saldoCompensatorioAdmin.horas_consumidas).toFixed(2)}h consumidas en dias
+                    compensatorios ={" "}
+                    <strong className={Number(saldoCompensatorioAdmin.dias_disponibles) < 0 ? "text-red-600" : ""}>
+                      {Number(saldoCompensatorioAdmin.dias_disponibles) >= 0
+                        ? `${Number(saldoCompensatorioAdmin.dias_disponibles).toFixed(2)} dias disponibles`
+                        : `debe ${Math.abs(Number(saldoCompensatorioAdmin.dias_disponibles)).toFixed(2)} dias`}
+                    </strong>
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    Este saldo se calcula solo (horas extra aprobadas menos dias compensatorios aprobados) --
+                    para ajustarlo, registra/aprueba horas extra o dias compensatorios en las otras pestanas.
+                  </p>
                 </div>
               )}
             </div>
