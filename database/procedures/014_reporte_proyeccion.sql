@@ -8,12 +8,17 @@
 -- planificado como lo real usan la tarifa VIGENTE HOY de cada talento,
 -- de forma consistente en todos los meses (pasados y futuros). Para el
 -- monto exacto a facturar de un mes ya cerrado, usar el reporte de
--- Costos.
+-- Costos/Resumen.
 --
 -- Planificado = dias laborales del mes completo (calendario del
--- talento, menos feriados y ausencias APROBADAS) x 8h x tarifa vigente.
+-- talento, menos feriados y ausencias APROBADAS) x 8h x tarifa vigente,
+-- SOLO para talentos con asignacion activa HOY (no tiene sentido
+-- proyectar horas futuras para alguien que ya no esta en el proyecto).
 -- Real = horas realmente trabajadas hasta HOY-1 (NULL si el mes todavia
--- no empieza) x tarifa vigente.
+-- no empieza) x tarifa vigente, para CUALQUIER talento que haya
+-- registrado horas ese mes -- si se desactivo su asignacion despues
+-- (ej. salio del proyecto), sus horas YA TRABAJADAS en meses pasados no
+-- deben desaparecer del reporte solo porque hoy ya no figura asignado.
 -- =====================================================================
 USE trackerTime;
 
@@ -80,39 +85,23 @@ BEGIN
       UNION ALL
       SELECT fecha + INTERVAL 1 DAY FROM dias WHERE fecha < v_fin_mes
     ),
-    asignados AS (
+    asignados_actuales AS (
+      -- Para lo PLANIFICADO: solo asignaciones vigentes HOY (define a
+      -- quien tiene sentido proyectarle horas futuras).
       SELECT up.id_usuario_proyecto, up.id_usuario, up.id_pais_calendario
       FROM usuarios_proyectos up
       JOIN proyectos pr ON pr.id_proyecto = up.id_proyecto
       WHERE pr.id_cliente = p_id_cliente AND up.activo = 1 AND pr.activo = 1
     ),
-    talentos AS (
-      SELECT DISTINCT id_usuario FROM asignados
-    ),
-    dias_laborales AS (
-      SELECT t.id_usuario, d.fecha
-      FROM talentos t
-      CROSS JOIN dias d
-      WHERE DAYOFWEEK(d.fecha) NOT IN (1, 7)
-        AND NOT EXISTS (
-          SELECT 1 FROM asignados a
-          JOIN feriados f ON f.id_pais = a.id_pais_calendario AND f.fecha = d.fecha AND f.activo = 1
-          WHERE a.id_usuario = t.id_usuario AND a.id_pais_calendario IS NOT NULL
-        )
-        AND NOT EXISTS (
-          SELECT 1 FROM ausencias au
-          JOIN maestro eau ON eau.id_maestro = au.id_estado AND eau.codigo = 'APROBADA'
-          WHERE au.id_usuario = t.id_usuario AND au.activo = 1
-            AND au.fecha_inicio <= d.fecha AND au.fecha_fin >= d.fecha
-        )
-    ),
-    tarifa_actual AS (
-      SELECT a.id_usuario, MAX(pt.tarifa) AS tarifa, MAX(pt.id_moneda) AS id_moneda
-      FROM asignados a
-      LEFT JOIN usuarios_proyectos_perfiles upp
-             ON upp.id_usuario_proyecto = a.id_usuario_proyecto AND upp.fecha_hasta IS NULL
-      LEFT JOIN perfiles_tarifas pt ON pt.id_perfil = upp.id_perfil AND pt.fecha_hasta IS NULL
-      GROUP BY a.id_usuario
+    asignados_historicos AS (
+      -- Para tarifa y horas REALES: cualquier asignacion de este
+      -- cliente, este activa o no -- si un talento se desactivo del
+      -- proyecto despues de trabajar, sus horas ya trabajadas en un mes
+      -- pasado no deben perderse ni perder con que tarifa resolverlas.
+      SELECT up.id_usuario_proyecto, up.id_usuario, up.id_pais_calendario
+      FROM usuarios_proyectos up
+      JOIN proyectos pr ON pr.id_proyecto = up.id_proyecto
+      WHERE pr.id_cliente = p_id_cliente
     ),
     horas_reales AS (
       SELECT rt.id_usuario, SUM(rt.duracion_segundos) AS segundos
@@ -126,6 +115,39 @@ BEGIN
         AND rt.fecha_inicio < v_fecha_corte + INTERVAL 1 DAY
         AND v_inicio_mes <= v_hoy
       GROUP BY rt.id_usuario
+    ),
+    talentos AS (
+      -- Cualquiera asignado hoy (para que aparezca con lo planificado),
+      -- UNION cualquiera con horas reales este mes aunque ya no este
+      -- asignado (para que no desaparezca su real historico).
+      SELECT id_usuario FROM asignados_actuales
+      UNION
+      SELECT id_usuario FROM horas_reales
+    ),
+    dias_laborales AS (
+      SELECT a.id_usuario, d.fecha
+      FROM asignados_actuales a
+      CROSS JOIN dias d
+      WHERE DAYOFWEEK(d.fecha) NOT IN (1, 7)
+        AND NOT EXISTS (
+          SELECT 1 FROM feriados f
+          WHERE f.id_pais = a.id_pais_calendario AND f.fecha = d.fecha AND f.activo = 1
+            AND a.id_pais_calendario IS NOT NULL
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM ausencias au
+          JOIN maestro eau ON eau.id_maestro = au.id_estado AND eau.codigo = 'APROBADA'
+          WHERE au.id_usuario = a.id_usuario AND au.activo = 1
+            AND au.fecha_inicio <= d.fecha AND au.fecha_fin >= d.fecha
+        )
+    ),
+    tarifa_actual AS (
+      SELECT ah.id_usuario, MAX(pt.tarifa) AS tarifa, MAX(pt.id_moneda) AS id_moneda
+      FROM asignados_historicos ah
+      LEFT JOIN usuarios_proyectos_perfiles upp
+             ON upp.id_usuario_proyecto = ah.id_usuario_proyecto AND upp.fecha_hasta IS NULL
+      LEFT JOIN perfiles_tarifas pt ON pt.id_perfil = upp.id_perfil AND pt.fecha_hasta IS NULL
+      GROUP BY ah.id_usuario
     )
     SELECT
       YEAR(v_inicio_mes),
