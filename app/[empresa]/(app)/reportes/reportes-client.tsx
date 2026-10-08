@@ -86,6 +86,13 @@ export default function ReportesClient({
   const [filasResumen, setFilasResumen] = useState<ResumenAvanceRow[]>([]);
   const [cargandoResumen, setCargandoResumen] = useState(false);
   const [buscoResumen, setBuscoResumen] = useState(false);
+  const [totalesResumen, setTotalesResumen] = useState<{
+    talentos: number;
+    horasTrabajadas: number;
+    horasObjetivo: number;
+    montoTotal: number;
+    codigoMoneda: string | null;
+  } | null>(null);
   const [enviandoRecordatorio, setEnviandoRecordatorio] = useState<Set<number>>(new Set());
   const [mensajeRecordatorio, setMensajeRecordatorio] = useState<string | null>(null);
 
@@ -337,6 +344,7 @@ export default function ReportesClient({
     setBuscoResumen(true);
     setError(null);
     setMensajeRecordatorio(null);
+    setTotalesResumen(null);
     cargarCierreFacturacion();
     try {
       const params = new URLSearchParams({
@@ -344,7 +352,18 @@ export default function ReportesClient({
         anio: String(resumenAnio),
         mes: String(resumenMes),
       });
-      setFilasResumen(await fetchJson<ResumenAvanceRow[]>(`/api/reportes/resumen?${params.toString()}`));
+      const [avance, totales] = await Promise.all([
+        fetchJson<ResumenAvanceRow[]>(`/api/reportes/resumen?${params.toString()}`),
+        fetchJson<{
+          talentos: number;
+          horasTrabajadas: number;
+          horasObjetivo: number;
+          montoTotal: number;
+          codigoMoneda: string | null;
+        }>(`/api/reportes/resumen/totales?${params.toString()}`),
+      ]);
+      setFilasResumen(avance);
+      setTotalesResumen(totales);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo generar el resumen de avance");
     }
@@ -828,7 +847,7 @@ export default function ReportesClient({
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-2 text-right font-medium">
+                      <td className="px-4 py-2 text-right font-medium whitespace-nowrap">
                         {f.moneda ? `${formatearMoneda(f.costo_total)} ${f.codigo_moneda}` : "-"}
                       </td>
                     </tr>
@@ -955,6 +974,35 @@ export default function ReportesClient({
           )}
 
           {mensajeRecordatorio && <p className="text-sm text-green-700">{mensajeRecordatorio}</p>}
+
+          {buscoResumen && !cargandoResumen && totalesResumen && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Talentos</p>
+                <p className="mt-1 text-lg font-semibold text-gray-900">{totalesResumen.talentos}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Horas trabajadas</p>
+                <p className="mt-1 text-lg font-semibold text-gray-900 whitespace-nowrap">
+                  {totalesResumen.horasTrabajadas.toFixed(2)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Horas objetivo</p>
+                <p className="mt-1 text-lg font-semibold text-gray-900 whitespace-nowrap">
+                  {totalesResumen.horasObjetivo.toFixed(2)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Monto total</p>
+                <p className="mt-1 text-lg font-semibold text-gray-900 whitespace-nowrap">
+                  {totalesResumen.codigoMoneda
+                    ? `${formatearMoneda(totalesResumen.montoTotal)} ${totalesResumen.codigoMoneda}`
+                    : "-"}
+                </p>
+              </div>
+            </div>
+          )}
 
           {buscoResumen && !cargandoResumen && filasResumen.length > 0 && (
             <p className="text-xs text-gray-500">
@@ -1136,20 +1184,20 @@ export default function ReportesClient({
                         <td className="px-4 py-2 text-gray-500">
                           {m.es_ejecutado === 1 ? "Ejecutado" : m.horas_reales !== null ? "En curso" : "Futuro"}
                         </td>
-                        <td className="px-4 py-2 text-right">{m.horas_planificadas.toFixed(2)}</td>
-                        <td className="px-4 py-2 text-right">
+                        <td className="px-4 py-2 text-right whitespace-nowrap">{m.horas_planificadas.toFixed(2)}</td>
+                        <td className="px-4 py-2 text-right whitespace-nowrap">
                           {m.codigo_moneda ? `${formatearMoneda(m.ingreso_planificado)} ${m.codigo_moneda}` : "-"}
                         </td>
-                        <td className="px-4 py-2 text-right">
+                        <td className="px-4 py-2 text-right whitespace-nowrap">
                           {m.horas_reales === null ? "-" : m.horas_reales.toFixed(2)}
                         </td>
-                        <td className="px-4 py-2 text-right">
+                        <td className="px-4 py-2 text-right whitespace-nowrap">
                           {m.ingreso_real === null
                             ? "-"
                             : `${formatearMoneda(m.ingreso_real)} ${m.codigo_moneda}`}
                         </td>
                         <td
-                          className={`px-4 py-2 text-right ${
+                          className={`px-4 py-2 text-right whitespace-nowrap ${
                             variacionHoras === null
                               ? ""
                               : variacionHoras < 0
@@ -1160,7 +1208,7 @@ export default function ReportesClient({
                           {variacionHoras === null ? "-" : variacionHoras.toFixed(2)}
                         </td>
                         <td
-                          className={`px-4 py-2 text-right ${
+                          className={`px-4 py-2 text-right whitespace-nowrap ${
                             variacionIngreso === null
                               ? ""
                               : variacionIngreso < 0
