@@ -6,6 +6,13 @@
 -- para ese proyecto, x una jornada estandar) y arma un semaforo de
 -- avance para que el Admin decida a quien recordarle que actualice sus
 -- horas.
+--
+-- Si el proyecto ya cerro ese mes en Facturacion (facturacion_cierres),
+-- las horas NO se recalculan en vivo: se usa el detalle congelado
+-- (facturacion_cierre_detalle), igual que en Proyeccion, para que este
+-- reporte siempre coincida con los otros dos en un mes cerrado. Un mes
+-- cerrado ya no necesita semaforo de avance (no hay nada que corregir),
+-- asi que se muestra VERDE.
 -- =====================================================================
 USE trackerTime;
 
@@ -46,6 +53,12 @@ BEGIN
     FROM usuarios_proyectos up
     WHERE up.id_proyecto = p_id_proyecto AND up.activo = 1
   ),
+  horas_congeladas AS (
+    SELECT d.id_usuario, d.horas_trabajadas AS horas, d.horas_objetivo AS objetivo
+    FROM facturacion_cierre_detalle d
+    JOIN facturacion_cierres c ON c.id_cierre = d.id_cierre
+    WHERE c.id_proyecto = p_id_proyecto AND c.anio = p_anio AND c.mes = p_mes AND c.cerrado = 1
+  ),
   dias_laborales AS (
     -- Dia laboral = no es fin de semana, no es feriado del calendario del
     -- talento, y no tiene una ausencia APROBADA (vacaciones/enfermedad)
@@ -70,7 +83,9 @@ BEGIN
           AND au.fecha_fin >= d.fecha
       )
   ),
-  horas_trabajadas AS (
+  horas_trabajadas_vivo AS (
+    -- Solo se usa si el mes NO esta cerrado -- si esta cerrado, viene de
+    -- horas_congeladas y no se vuelve a calcular.
     SELECT rt.id_usuario, SUM(rt.duracion_segundos) AS segundos
     FROM registros_tiempo rt
     JOIN tareas t ON t.id_tarea = rt.id_tarea
@@ -80,6 +95,14 @@ BEGIN
       AND rt.fecha_inicio >= v_inicio_mes
       AND rt.fecha_inicio < v_fecha_corte + INTERVAL 1 DAY
     GROUP BY rt.id_usuario
+  ),
+  talentos AS (
+    -- Union con horas_congeladas para que un talento ya desasignado no
+    -- desaparezca del resumen de un mes cerrado (mismo criterio que
+    -- Proyeccion).
+    SELECT id_usuario FROM asignados
+    UNION
+    SELECT id_usuario FROM horas_congeladas
   )
   SELECT
     u.id_usuario,
@@ -87,32 +110,38 @@ BEGIN
     u.activo AS usuario_activo,
     paism.valor AS pais_calendario,
     v_fecha_corte AS fecha_corte,
-    (SELECT COUNT(*) FROM dias_laborales dl WHERE dl.id_usuario = a.id_usuario) AS dias_laborales_totales_mes,
-    (SELECT COUNT(*) FROM dias_laborales dl WHERE dl.id_usuario = a.id_usuario AND dl.fecha <= v_fecha_corte)
+    (SELECT COUNT(*) FROM dias_laborales dl WHERE dl.id_usuario = tl.id_usuario) AS dias_laborales_totales_mes,
+    (SELECT COUNT(*) FROM dias_laborales dl WHERE dl.id_usuario = tl.id_usuario AND dl.fecha <= v_fecha_corte)
       AS dias_laborales_a_fecha,
-    ROUND(COALESCE(ht.segundos, 0) / 3600, 2) AS horas_trabajadas,
-    ROUND(
-      (SELECT COUNT(*) FROM dias_laborales dl WHERE dl.id_usuario = a.id_usuario AND dl.fecha <= v_fecha_corte)
-        * v_horas_jornada,
-      2
+    COALESCE(hc.horas, ROUND(COALESCE(htv.segundos, 0) / 3600, 2)) AS horas_trabajadas,
+    COALESCE(
+      hc.objetivo,
+      ROUND(
+        (SELECT COUNT(*) FROM dias_laborales dl WHERE dl.id_usuario = tl.id_usuario AND dl.fecha <= v_fecha_corte)
+          * v_horas_jornada,
+        2
+      )
     ) AS horas_planificadas_a_fecha,
     CASE
-      WHEN (SELECT COUNT(*) FROM dias_laborales dl WHERE dl.id_usuario = a.id_usuario AND dl.fecha <= v_fecha_corte) = 0
+      WHEN hc.horas IS NOT NULL THEN 'VERDE'
+      WHEN (SELECT COUNT(*) FROM dias_laborales dl WHERE dl.id_usuario = tl.id_usuario AND dl.fecha <= v_fecha_corte) = 0
         THEN 'VERDE'
-      WHEN (COALESCE(ht.segundos, 0) / 3600) / (
-        (SELECT COUNT(*) FROM dias_laborales dl WHERE dl.id_usuario = a.id_usuario AND dl.fecha <= v_fecha_corte)
+      WHEN (COALESCE(htv.segundos, 0) / 3600) / (
+        (SELECT COUNT(*) FROM dias_laborales dl WHERE dl.id_usuario = tl.id_usuario AND dl.fecha <= v_fecha_corte)
           * v_horas_jornada
       ) >= 0.9 THEN 'VERDE'
-      WHEN (COALESCE(ht.segundos, 0) / 3600) / (
-        (SELECT COUNT(*) FROM dias_laborales dl WHERE dl.id_usuario = a.id_usuario AND dl.fecha <= v_fecha_corte)
+      WHEN (COALESCE(htv.segundos, 0) / 3600) / (
+        (SELECT COUNT(*) FROM dias_laborales dl WHERE dl.id_usuario = tl.id_usuario AND dl.fecha <= v_fecha_corte)
           * v_horas_jornada
       ) >= 0.7 THEN 'AMARILLO'
       ELSE 'ROJO'
     END AS semaforo
-  FROM asignados a
-  JOIN usuarios u ON u.id_usuario = a.id_usuario
+  FROM talentos tl
+  JOIN usuarios u ON u.id_usuario = tl.id_usuario
+  LEFT JOIN asignados a ON a.id_usuario = tl.id_usuario
   LEFT JOIN maestro paism ON paism.id_maestro = a.id_pais_calendario
-  LEFT JOIN horas_trabajadas ht ON ht.id_usuario = a.id_usuario
+  LEFT JOIN horas_trabajadas_vivo htv ON htv.id_usuario = tl.id_usuario
+  LEFT JOIN horas_congeladas hc ON hc.id_usuario = tl.id_usuario
   ORDER BY u.nombres, u.apellidos;
 END $$
 
