@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 
     const buffer = await generarExcel([
       {
-        nombre: "Costos",
+        nombre: "Monto a facturar",
         columnas: [
           { header: "Colaborador", key: "colaborador", width: 25 },
           { header: "Calendario", key: "pais_calendario", width: 18 },
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
           { header: "Horas trabajadas", key: "horas_trabajadas", width: 16, numFmt: "0.00" },
           { header: "Horas sin tarifa", key: "horas_sin_tarifa", width: 16, numFmt: "0.00" },
           { header: "Moneda", key: "codigo_moneda", width: 10 },
-          { header: "Costo total", key: "costo_total", width: 14, numFmt: "#,##0.00" },
+          { header: "Monto a facturar", key: "costo_total", width: 14, numFmt: "#,##0.00" },
         ],
         filas: filas.map((f) => ({
           ...f,
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     ]);
 
     const { primero, ultimo } = primerYUltimoDiaMes(Number(anio), Number(mes));
-    return respuestaExcel(buffer, nombreArchivoReporte("Costs", primero, ultimo));
+    return respuestaExcel(buffer, nombreArchivoReporte("AmountToBill", primero, ultimo));
   } catch (err) {
     return handleApiError(err);
   }

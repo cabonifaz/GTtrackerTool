@@ -223,7 +223,7 @@ export default function ReportesClient({
     if (!costoIdProyecto) return;
     const params = new URLSearchParams({ idProyecto: costoIdProyecto, anio: String(costoAnio), mes: String(costoMes) });
     const { primero, ultimo } = primerYUltimoDiaMes(costoAnio, costoMes);
-    descargarExcel(`/api/reportes/costos/exportar?${params.toString()}`, nombreReporte("Costs", primero, ultimo));
+    descargarExcel(`/api/reportes/costos/exportar?${params.toString()}`, nombreReporte("AmountToBill", primero, ultimo));
   }
 
   function exportarResumen(tarifasActuales = false) {
@@ -278,7 +278,7 @@ export default function ReportesClient({
       });
       setFilasCostos(await fetchJson<ReporteCostoRow[]>(`/api/reportes/costos?${params.toString()}`));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo generar el reporte de costos");
+      setError(err instanceof Error ? err.message : "No se pudo generar el reporte de monto a facturar");
     }
     setCargandoCostos(false);
   }
@@ -529,7 +529,7 @@ export default function ReportesClient({
                 : "border-transparent text-gray-500"
             }`}
           >
-            Costos
+            Monto a facturar
           </button>
         )}
         {esAdmin && (
@@ -819,7 +819,7 @@ export default function ReportesClient({
 
           <div className="rounded-lg border border-gray-200 bg-white overflow-x-auto">
             {cargandoCostos ? (
-              <CargandoInline texto="Calculando costos..." />
+              <CargandoInline texto="Calculando monto a facturar..." />
             ) : (
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-left text-gray-500">
@@ -829,7 +829,7 @@ export default function ReportesClient({
                     <th className="px-4 py-2 font-medium text-right">Dias laborales del mes</th>
                     <th className="px-4 py-2 font-medium text-right">Dias laborales a la fecha</th>
                     <th className="px-4 py-2 font-medium text-right">Horas trabajadas</th>
-                    <th className="px-4 py-2 font-medium text-right">Costo</th>
+                    <th className="px-4 py-2 font-medium text-right">Monto a facturar</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -1150,7 +1150,7 @@ export default function ReportesClient({
             <p className="text-xs text-gray-500">
               Lo planificado usa la tarifa vigente hoy de cada talento, aplicada de forma consistente en
               todos los meses (pasados y futuros). Para el monto exacto a facturar de un mes ya cerrado, usa
-              el reporte de Costos.
+              el reporte de Resumen.
             </p>
           )}
 

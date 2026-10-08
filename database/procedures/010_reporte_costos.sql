@@ -1,8 +1,12 @@
 -- =====================================================================
--- Stored Procedure: reporte de costos mensual por proyecto.
+-- Stored Procedure: monto a facturar al cliente, acumulado a la fecha,
+-- por proyecto. A pesar del nombre de la tabla/columna ("costo"), esto
+-- es el monto que se le factura al CLIENTE (horas x tarifa de venta),
+-- no un costo interno de la empresa -- ese modulo (costo real de cada
+-- talento) todavia no existe.
 -- Calcula, por cada talento asignado al proyecto: horas trabajadas en
 -- el mes (hasta HOY-1, nunca el dia de hoy porque aun no cierra), el
--- costo resultante de multiplicar esas horas por la tarifa que estaba
+-- monto resultante de multiplicar esas horas por la tarifa que estaba
 -- VIGENTE cada dia (el perfil/tarifa puede haber cambiado a mitad de
 -- mes), y los dias laborales del mes segun el calendario de feriados
 -- del talento para ese proyecto.
