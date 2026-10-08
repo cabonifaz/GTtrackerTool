@@ -5,10 +5,10 @@
 -- Nota de diseno: a diferencia de sp_reporte_costos_mensual (que es el
 -- documento de facturacion y por eso reconstruye la tarifa vigente
 -- dia por dia), este reporte es de tendencia/proyeccion: tanto lo
--- planificado como lo real usan la tarifa VIGENTE HOY de cada talento,
--- de forma consistente en todos los meses (pasados y futuros). Para el
--- monto exacto a facturar de un mes ya cerrado, usar el reporte de
--- Costos/Resumen.
+-- planificado como lo real (de un mes NO cerrado) usan la tarifa
+-- VIGENTE HOY de cada talento, de forma consistente. La excepcion es un
+-- mes ya CERRADO en Facturacion (ver mas abajo): ahi el Real es el
+-- monto congelado exacto, no un recalculo con tarifa vigente hoy.
 --
 -- Planificado = dias laborales del mes completo (calendario del
 -- talento, menos feriados y ausencias APROBADAS) x 8h x tarifa vigente,
@@ -19,6 +19,13 @@
 -- registrado horas ese mes -- si se desactivo su asignacion despues
 -- (ej. salio del proyecto), sus horas YA TRABAJADAS en meses pasados no
 -- deben desaparecer del reporte solo porque hoy ya no figura asignado.
+--
+-- Si el proyecto ya cerro ese mes en Facturacion (facturacion_cierres),
+-- el Real de ese mes NO se recalcula: se toma tal cual del detalle
+-- congelado (facturacion_cierre_detalle), para que coincida siempre con
+-- el monto fijo ya facturado y no se mueva por cambios de tarifa/perfil
+-- posteriores. Si el mes no esta cerrado, se sigue calculando en vivo
+-- con la tarifa vigente hoy (como antes).
 -- =====================================================================
 USE trackerTime;
 
@@ -103,7 +110,28 @@ BEGIN
       JOIN proyectos pr ON pr.id_proyecto = up.id_proyecto
       WHERE pr.id_cliente = p_id_cliente
     ),
+    proyectos_cerrados AS (
+      -- Proyectos de este cliente que ya cerraron Facturacion para este
+      -- mes especifico: su Real no se recalcula, se usa el congelado.
+      SELECT c.id_proyecto
+      FROM facturacion_cierres c
+      JOIN proyectos pr ON pr.id_proyecto = c.id_proyecto
+      WHERE pr.id_cliente = p_id_cliente
+        AND c.anio = YEAR(v_inicio_mes) AND c.mes = MONTH(v_inicio_mes) AND c.cerrado = 1
+    ),
+    horas_congeladas AS (
+      SELECT d.id_usuario,
+             SUM(d.horas_trabajadas) AS horas,
+             SUM(d.horas_trabajadas * COALESCE(d.tarifa, 0)) AS ingreso
+      FROM facturacion_cierre_detalle d
+      JOIN facturacion_cierres c ON c.id_cierre = d.id_cierre
+      WHERE c.id_proyecto IN (SELECT id_proyecto FROM proyectos_cerrados)
+        AND c.anio = YEAR(v_inicio_mes) AND c.mes = MONTH(v_inicio_mes) AND c.cerrado = 1
+      GROUP BY d.id_usuario
+    ),
     horas_reales AS (
+      -- Solo de proyectos NO cerrados ese mes: lo de proyectos cerrados
+      -- viene de horas_congeladas, no se vuelve a calcular.
       SELECT rt.id_usuario, SUM(rt.duracion_segundos) AS segundos
       FROM registros_tiempo rt
       JOIN tareas t ON t.id_tarea = rt.id_tarea
@@ -114,15 +142,19 @@ BEGIN
         AND rt.fecha_inicio >= v_inicio_mes
         AND rt.fecha_inicio < v_fecha_corte + INTERVAL 1 DAY
         AND v_inicio_mes <= v_hoy
+        AND pr.id_proyecto NOT IN (SELECT id_proyecto FROM proyectos_cerrados)
       GROUP BY rt.id_usuario
     ),
     talentos AS (
       -- Cualquiera asignado hoy (para que aparezca con lo planificado),
-      -- UNION cualquiera con horas reales este mes aunque ya no este
-      -- asignado (para que no desaparezca su real historico).
+      -- UNION cualquiera con horas reales (vivas o congeladas) este mes
+      -- aunque ya no este asignado (para que no desaparezca su real
+      -- historico).
       SELECT id_usuario FROM asignados_actuales
       UNION
       SELECT id_usuario FROM horas_reales
+      UNION
+      SELECT id_usuario FROM horas_congeladas
     ),
     dias_laborales AS (
       SELECT a.id_usuario, d.fecha
@@ -164,15 +196,18 @@ BEGIN
           * v_horas_jornada * COALESCE(ta.tarifa, 0),
         2
       ),
-      CASE WHEN v_inicio_mes <= v_hoy THEN ROUND(COALESCE(hr.segundos, 0) / 3600, 2) ELSE NULL END,
       CASE WHEN v_inicio_mes <= v_hoy
-        THEN ROUND((COALESCE(hr.segundos, 0) / 3600) * COALESCE(ta.tarifa, 0), 2)
+        THEN ROUND(COALESCE(hr.segundos, 0) / 3600 + COALESCE(hc.horas, 0), 2)
+        ELSE NULL END,
+      CASE WHEN v_inicio_mes <= v_hoy
+        THEN ROUND((COALESCE(hr.segundos, 0) / 3600) * COALESCE(ta.tarifa, 0) + COALESCE(hc.ingreso, 0), 2)
         ELSE NULL END
     FROM talentos tl
     JOIN usuarios u ON u.id_usuario = tl.id_usuario
     LEFT JOIN tarifa_actual ta ON ta.id_usuario = tl.id_usuario
     LEFT JOIN maestro mon ON mon.id_maestro = ta.id_moneda
     LEFT JOIN horas_reales hr ON hr.id_usuario = tl.id_usuario
+    LEFT JOIN horas_congeladas hc ON hc.id_usuario = tl.id_usuario
     WHERE u.activo = 1;
 
     SET v_mes_cursor = v_mes_cursor + INTERVAL 1 MONTH;
