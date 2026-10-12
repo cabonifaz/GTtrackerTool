@@ -102,6 +102,38 @@ export interface UsuarioBloqueado {
   bloqueado_hasta: string;
 }
 
+export type CodigoEstadoInvitacion = "PENDIENTE" | "ACEPTADA" | "REVOCADA";
+
+export interface InvitacionAdmin {
+  id_invitacion: number;
+  id_usuario: number;
+  colaborador: string;
+  email: string;
+  codigo_rol: CodigoRol;
+  rol: string;
+  id_proyecto: number | null;
+  proyecto: string | null;
+  codigo_estado: CodigoEstadoInvitacion;
+  estado: string;
+  token: string;
+  fecha_expiracion: string;
+  fecha_aceptacion: string | null;
+  fecha_creacion: string;
+}
+
+export interface InvitacionPublica {
+  nombres: string;
+  apellidos: string;
+  email: string;
+  empresa: string;
+  empresa_slug: string;
+  color_primario: string;
+  tiene_logo: number;
+  proyecto: string | null;
+  codigo_estado: CodigoEstadoInvitacion;
+  fecha_expiracion: string;
+}
+
 export type CodigoTipoProyecto = "CRONOMETRO" | "CLASES" | "ACTIVIDADES_EXCEL";
 
 export interface Proyecto {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, FormEvent } from "react";
 import {
   Cliente,
   ImportarUsuarioResultado,
+  InvitacionAdmin,
   MaestroItem,
   MiClienteGestionado,
   MiProyecto,
@@ -30,12 +31,16 @@ export default function UsuariosClient({
   proyectosIniciales = [],
   paisesCalendarioIniciales = [],
   clientesIniciales = [],
+  invitacionesIniciales = [],
+  empresaSlug,
 }: {
   usuariosIniciales: Usuario[];
   sistemasIniciales: UsuarioSistema[];
   proyectosIniciales?: Proyecto[];
   paisesCalendarioIniciales?: MaestroItem[];
   clientesIniciales?: Cliente[];
+  invitacionesIniciales?: InvitacionAdmin[];
+  empresaSlug: string;
 }) {
   const [usuarios, setUsuarios] = useState<Usuario[]>(usuariosIniciales);
   const [sistemas, setSistemas] = useState<UsuarioSistema[]>(sistemasIniciales);
@@ -49,6 +54,15 @@ export default function UsuariosClient({
   );
   const [passwordGenerica, setPasswordGenerica] = useState<string | null>(null);
   const [enviandoUsuario, setEnviandoUsuario] = useState(false);
+
+  // Invitacion por link: crea el usuario, lo autoasigna al proyecto, y
+  // genera un link de un solo uso para que la persona fije su propia
+  // clave (reemplaza la necesidad de compartir la contrasena generica).
+  const [invitaciones, setInvitaciones] = useState<InvitacionAdmin[]>(invitacionesIniciales);
+  const [enviandoInvitacion, setEnviandoInvitacion] = useState(false);
+  const [linkInvitacion, setLinkInvitacion] = useState<string | null>(null);
+  const [procesandoInvitacion, setProcesandoInvitacion] = useState<Set<number>>(new Set());
+  const [linkPorInvitacion, setLinkPorInvitacion] = useState<Record<number, string>>({});
   const [enviandoSistema, setEnviandoSistema] = useState(false);
   const [idsProcesando, setIdsProcesando] = useState<Set<number | string>>(new Set());
   const [editandoUsuario, setEditandoUsuario] = useState<number | null>(null);
@@ -122,14 +136,16 @@ export default function UsuariosClient({
 
   async function cargarTodo() {
     try {
-      const [u, s, p] = await Promise.all([
+      const [u, s, p, inv] = await Promise.all([
         fetchJson<Usuario[]>("/api/usuarios"),
         fetchJson<UsuarioSistema[]>("/api/usuarios-sistema"),
         fetchJson<Proyecto[]>("/api/proyectos"),
+        fetchJson<InvitacionAdmin[]>("/api/invitaciones"),
       ]);
       setUsuarios(u);
       setSistemas(s);
       setProyectos(p.filter((x) => x.activo));
+      setInvitaciones(inv);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudieron cargar los usuarios");
     }
@@ -319,6 +335,90 @@ export default function UsuariosClient({
     await cargarTodo();
     setBusqueda(email);
     setEnviandoUsuario(false);
+  }
+
+  async function invitarTalento(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setLinkInvitacion(null);
+    setEnviandoInvitacion(true);
+    const formEl = e.currentTarget;
+    const form = new FormData(formEl);
+    const idProyecto = form.get("idProyecto");
+    const res = await fetch("/api/usuarios/invitar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nombres: form.get("nombres"),
+        apellidos: form.get("apellidos"),
+        email: form.get("email"),
+        codigoRol: form.get("codigoRol"),
+        numeroDocumento: form.get("numeroDocumento") || null,
+        idProyecto: idProyecto || null,
+      }),
+    });
+    if (!res.ok) {
+      setError((await res.json()).error);
+      setEnviandoInvitacion(false);
+      return;
+    }
+    const data = await res.json();
+    setLinkInvitacion(data.link);
+    formEl.reset();
+    await cargarTodo();
+    setEnviandoInvitacion(false);
+  }
+
+  async function reenviarInvitacion(idInvitacion: number) {
+    setProcesandoInvitacion((prev) => new Set(prev).add(idInvitacion));
+    setError(null);
+    try {
+      const res = await fetch(`/api/invitaciones/${idInvitacion}/reenviar`, { method: "POST" });
+      if (!res.ok) throw new Error((await res.json()).error);
+      const data = await res.json();
+      setLinkPorInvitacion((prev) => ({ ...prev, [idInvitacion]: data.link }));
+      await cargarTodo();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo reenviar la invitacion");
+    } finally {
+      setProcesandoInvitacion((prev) => {
+        const next = new Set(prev);
+        next.delete(idInvitacion);
+        return next;
+      });
+    }
+  }
+
+  async function revocarInvitacion(idInvitacion: number) {
+    setProcesandoInvitacion((prev) => new Set(prev).add(idInvitacion));
+    setError(null);
+    try {
+      const res = await fetch(`/api/invitaciones/${idInvitacion}/revocar`, { method: "POST" });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setLinkPorInvitacion((prev) => {
+        const next = { ...prev };
+        delete next[idInvitacion];
+        return next;
+      });
+      await cargarTodo();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo revocar la invitacion");
+    } finally {
+      setProcesandoInvitacion((prev) => {
+        const next = new Set(prev);
+        next.delete(idInvitacion);
+        return next;
+      });
+    }
+  }
+
+  async function copiarLink(link: string) {
+    try {
+      await navigator.clipboard.writeText(link);
+    } catch {
+      // Si el navegador bloquea el portapapeles, el link sigue visible en
+      // pantalla para copiarlo a mano.
+    }
   }
 
   async function guardarEdicion(u: Usuario, e: FormEvent<HTMLFormElement>) {
@@ -527,6 +627,151 @@ export default function UsuariosClient({
             Crear usuario
           </button>
         </form>
+
+        {/* Invitacion por link */}
+        <div className="pt-6 space-y-3 border-t border-gray-100">
+          <div>
+            <h2 className="text-sm font-semibold">Invitar por link</h2>
+            <p className="text-xs text-gray-500">
+              Crea al usuario, lo autoasigna al proyecto elegido, y genera un link para que la persona
+              configure su propia clave la primera vez (no hace falta compartir ninguna contrasena).
+            </p>
+          </div>
+
+          {linkInvitacion && (
+            <div className="rounded-md border border-green-300 bg-green-50 px-4 py-3 text-sm space-y-2">
+              <p className="font-medium">Comparte este link con la persona invitada:</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <code className="break-all text-xs bg-white border border-green-200 rounded px-2 py-1">
+                  {linkInvitacion}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => copiarLink(linkInvitacion)}
+                  className="rounded-md border border-green-300 bg-white text-green-700 text-xs font-medium px-2.5 py-1 hover:bg-green-100"
+                >
+                  Copiar
+                </button>
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={invitarTalento} className="grid gap-2 sm:grid-cols-6">
+            <input name="nombres" required placeholder="Nombres" className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
+            <input name="apellidos" required placeholder="Apellidos" className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
+            <input name="email" type="email" required placeholder="Email" className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
+            <input
+              name="numeroDocumento"
+              placeholder="N.º documento (opcional)"
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+            />
+            <select name="codigoRol" className="rounded-md border border-gray-300 px-3 py-2 text-sm">
+              <option value="TALENTO">Talento</option>
+              <option value="ADMIN">Admin</option>
+              <option value="GESTOR_SERVICIO">Gestor de Servicio</option>
+            </select>
+            <select name="idProyecto" className="rounded-md border border-gray-300 px-3 py-2 text-sm">
+              <option value="">Sin proyecto</option>
+              {proyectos.map((p) => (
+                <option key={p.id_proyecto} value={p.id_proyecto}>
+                  {p.nombre}
+                  {p.cliente ? ` (${p.cliente})` : ""}
+                </option>
+              ))}
+            </select>
+            <button
+              disabled={enviandoInvitacion}
+              className="inline-flex items-center gap-2 rounded-md border border-[var(--color-primario)] text-[var(--color-primario)] text-sm font-medium px-4 py-2 disabled:opacity-50 sm:col-span-6 sm:w-fit"
+            >
+              {enviandoInvitacion && <Spinner />}
+              Invitar
+            </button>
+          </form>
+
+          {invitaciones.length > 0 && (
+            <div className="rounded-lg border border-gray-200 bg-white overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-left text-gray-500">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">Colaborador</th>
+                    <th className="px-4 py-2 font-medium">Rol</th>
+                    <th className="px-4 py-2 font-medium">Proyecto</th>
+                    <th className="px-4 py-2 font-medium">Estado</th>
+                    <th className="px-4 py-2 font-medium">Expira</th>
+                    <th className="px-4 py-2 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {invitaciones.map((inv) => {
+                    const vencida = inv.codigo_estado === "PENDIENTE" && new Date(inv.fecha_expiracion) < new Date();
+                    const link =
+                      linkPorInvitacion[inv.id_invitacion] ??
+                      `${typeof window !== "undefined" ? window.location.origin : ""}/${empresaSlug}/invitacion/${inv.token}`;
+                    return (
+                      <tr key={inv.id_invitacion}>
+                        <td className="px-4 py-2">
+                          {inv.colaborador}
+                          <span className="text-gray-400"> · {inv.email}</span>
+                        </td>
+                        <td className="px-4 py-2 text-gray-500">{inv.rol}</td>
+                        <td className="px-4 py-2 text-gray-500">{inv.proyecto ?? "Sin proyecto"}</td>
+                        <td className="px-4 py-2">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                              inv.codigo_estado === "ACEPTADA"
+                                ? "bg-green-100 text-green-700"
+                                : inv.codigo_estado === "REVOCADA"
+                                  ? "bg-gray-100 text-gray-500"
+                                  : vencida
+                                    ? "bg-amber-100 text-amber-700"
+                                    : "bg-blue-100 text-blue-700"
+                            }`}
+                          >
+                            {inv.codigo_estado === "PENDIENTE" && vencida ? "Vencida" : inv.estado}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-gray-500 whitespace-nowrap">
+                          {inv.fecha_expiracion.slice(0, 10)}
+                        </td>
+                        <td className="px-4 py-2 whitespace-nowrap">
+                          {inv.codigo_estado === "PENDIENTE" && (
+                            <div className="flex flex-wrap gap-2">
+                              {!vencida && (
+                                <button
+                                  type="button"
+                                  onClick={() => copiarLink(link)}
+                                  className="text-xs text-gray-500 hover:text-gray-900 underline"
+                                >
+                                  Copiar link
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => reenviarInvitacion(inv.id_invitacion)}
+                                disabled={procesandoInvitacion.has(inv.id_invitacion)}
+                                className="text-xs text-gray-500 hover:text-gray-900 underline disabled:opacity-40"
+                              >
+                                Reenviar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => revocarInvitacion(inv.id_invitacion)}
+                                disabled={procesandoInvitacion.has(inv.id_invitacion)}
+                                className="text-xs text-red-500 hover:text-red-700 underline disabled:opacity-40"
+                              >
+                                Revocar
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
 
         {/* Buscador de usuarios */}
         <div className="pt-4 space-y-3">
