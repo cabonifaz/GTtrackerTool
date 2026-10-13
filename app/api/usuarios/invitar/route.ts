@@ -42,7 +42,10 @@ export async function POST(req: NextRequest) {
     const token = crypto.randomBytes(32).toString("hex");
     await crearInvitacion(idUsuario, idProyecto ? Number(idProyecto) : null, token, DIAS_EXPIRACION, session.user.idEmpresa!, creadoPor);
 
-    const link = `${req.nextUrl.origin}/${session.user.empresaSlug}/invitacion/${token}`;
+    // NEXTAUTH_URL (no req.nextUrl.origin) porque es la URL publica ya
+    // configurada a mano por entorno -- req.nextUrl.origin puede salir
+    // mal si hay un proxy/balanceador que no reenvia el Host real.
+    const link = `${process.env.NEXTAUTH_URL}/${session.user.empresaSlug}/invitacion/${token}`;
     return NextResponse.json({ idUsuario, link }, { status: 201 });
   } catch (err) {
     return handleApiError(err);
