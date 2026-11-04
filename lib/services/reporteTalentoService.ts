@@ -38,10 +38,17 @@ function indiceMes(anio: number, mes: number) {
 }
 
 function costoVigenteEnMes(historialCosto: TalentoCostoHistorico[], anio: number, mes: number) {
+  if (historialCosto.length === 0) return null;
   const primerDia = `${anio}-${String(mes).padStart(2, "0")}-01`;
-  return (
-    historialCosto.find((c) => c.fecha_desde <= primerDia && (!c.fecha_hasta || c.fecha_hasta >= primerDia)) ?? null
+  const exacto = historialCosto.find(
+    (c) => c.fecha_desde <= primerDia && (!c.fecha_hasta || c.fecha_hasta >= primerDia)
   );
+  if (exacto) return exacto;
+  // El mes es anterior al primer costo jamas registrado -- no hay un
+  // valor historico mejor, asi que se usa el mas antiguo conocido en vez
+  // de dejar el margen vacio: la primera vez que se carga un sueldo debe
+  // reflejarse tambien en los meses pasados del reporte.
+  return historialCosto.reduce((masAntiguo, c) => (c.fecha_desde < masAntiguo.fecha_desde ? c : masAntiguo));
 }
 
 // Reutiliza sp_reporte_proyeccion_cliente (ya resuelve real/planificado
