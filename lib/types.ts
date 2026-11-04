@@ -504,6 +504,59 @@ export interface ProyeccionRow {
   ingreso_real: number | null;
 }
 
+export interface TalentoPerfilHistorico {
+  id_usuario_proyecto_perfil: number;
+  id_perfil: number;
+  perfil: string;
+  fecha_desde: string;
+  fecha_hasta: string | null;
+}
+
+export interface TalentoTarifaHistorico {
+  id_perfil_tarifa: number;
+  perfil: string;
+  tarifa: number;
+  codigo_moneda: string;
+  moneda: string;
+  fecha_desde: string;
+  fecha_hasta: string | null;
+}
+
+export interface TalentoCostoHistorico {
+  id_talento_costo: number;
+  costo_mensual: number;
+  codigo_moneda: string;
+  moneda: string;
+  fecha_desde: string;
+  fecha_hasta: string | null;
+}
+
+export interface ReporteTalentoMesRow {
+  anio: number;
+  mes: number;
+  es_ejecutado: number;
+  horas_reales: number | null;
+  ingreso_real: number | null;
+  horas_planificadas: number;
+  ingreso_planificado: number;
+  codigo_moneda: string | null;
+  moneda: string | null;
+  costo_mensual: number | null;
+  margen_dinero: number | null;
+  margen_pct: number | null;
+}
+
+export interface ReporteTalentoResponse {
+  colaborador: string;
+  cliente: string;
+  meses: ReporteTalentoMesRow[];
+  picoHoras: ReporteTalentoMesRow | null;
+  picoMonto: ReporteTalentoMesRow | null;
+  historialPerfiles: TalentoPerfilHistorico[];
+  historialTarifas: TalentoTarifaHistorico[];
+  historialCosto: TalentoCostoHistorico[];
+}
+
 export interface ImportarFilaResultado {
   fila: number;
   ok: boolean;

@@ -3,18 +3,21 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   EstadoCierreFacturacion,
+  MaestroItem,
   Proyecto,
   ProyeccionRow,
   ReporteClasesPorGrupo,
   ReporteClasesPorProfesor,
   ReporteCostoRow,
   ReporteDetalleRow,
+  ReporteTalentoResponse,
   ReporteTareaRow,
   ResumenAvanceRow,
   Usuario,
 } from "@/lib/types";
 import { CargandoInline, Spinner } from "@/components/Spinner";
 import SelectorTalentosMultiple from "@/components/SelectorTalentosMultiple";
+import BuscadorTalento from "@/components/BuscadorTalento";
 import { fetchJson } from "@/lib/fetchJson";
 import { formatearMoneda } from "@/lib/format";
 
@@ -29,7 +32,7 @@ const MESES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
-type Vista = "detalle" | "por-tarea" | "costos" | "resumen" | "proyeccion" | "clases";
+type Vista = "detalle" | "por-tarea" | "costos" | "resumen" | "proyeccion" | "talento" | "clases";
 
 const SEMAFORO: Record<ResumenAvanceRow["semaforo"], { color: string; label: string }> = {
   VERDE: { color: "bg-green-500", label: "Al dia" },
@@ -39,19 +42,23 @@ const SEMAFORO: Record<ResumenAvanceRow["semaforo"], { color: string; label: str
 
 export default function ReportesClient({
   esAdmin,
+  puedeVerTalento,
   usuariosIniciales,
   filasIniciales,
   fechaInicioInicial,
   fechaFinInicial,
   proyectosIniciales,
+  monedasIniciales = [],
   tieneClases,
 }: {
   esAdmin: boolean;
+  puedeVerTalento: boolean;
   usuariosIniciales: Usuario[];
   filasIniciales: ReporteDetalleRow[];
   fechaInicioInicial: string;
   fechaFinInicial: string;
   proyectosIniciales: Proyecto[];
+  monedasIniciales?: MaestroItem[];
   tieneClases: boolean;
 }) {
   const [vista, setVista] = useState<Vista>("detalle");
@@ -116,6 +123,100 @@ export default function ReportesClient({
   const [filasProyeccion, setFilasProyeccion] = useState<ProyeccionRow[]>([]);
   const [cargandoProyeccion, setCargandoProyeccion] = useState(false);
   const [buscoProyeccion, setBuscoProyeccion] = useState(false);
+
+  // Reporte de Talento: evolucion mensual (horas/monto, picos,
+  // proyectado), historial de perfil/tarifa, y costo/margen (Admin y
+  // Gestor de Servicio, acotado a sus clientes).
+  const [monedas] = useState<MaestroItem[]>(monedasIniciales);
+  const [talentoIdCliente, setTalentoIdCliente] = useState("");
+  const [talentosDeCliente, setTalentosDeCliente] = useState<Usuario[]>([]);
+  const [cargandoTalentosCliente, setCargandoTalentosCliente] = useState(false);
+  const [talentoIdUsuario, setTalentoIdUsuario] = useState<number | null>(null);
+  const [talentoDesdeAnio, setTalentoDesdeAnio] = useState(hoy.getFullYear());
+  const [talentoDesdeMes, setTalentoDesdeMes] = useState(1);
+  const [talentoHastaAnio, setTalentoHastaAnio] = useState(hoy.getFullYear());
+  const [talentoHastaMes, setTalentoHastaMes] = useState(hoy.getMonth() + 1);
+  const [reporteTalento, setReporteTalento] = useState<ReporteTalentoResponse | null>(null);
+  const [cargandoReporteTalento, setCargandoReporteTalento] = useState(false);
+  const [buscoReporteTalento, setBuscoReporteTalento] = useState(false);
+  const [costoMensualForm, setCostoMensualForm] = useState("");
+  const [idMonedaCostoForm, setIdMonedaCostoForm] = useState("");
+  const [guardandoCosto, setGuardandoCosto] = useState(false);
+  const [mostrarHistorialCosto, setMostrarHistorialCosto] = useState(false);
+
+  useEffect(() => {
+    if (!talentoIdCliente) {
+      setTalentosDeCliente([]);
+      setTalentoIdUsuario(null);
+      return;
+    }
+    setCargandoTalentosCliente(true);
+    setTalentoIdUsuario(null);
+    setReporteTalento(null);
+    setBuscoReporteTalento(false);
+    fetchJson<Usuario[]>(`/api/clientes/${talentoIdCliente}/talentos`)
+      .then(setTalentosDeCliente)
+      .catch((err) => setError(err instanceof Error ? err.message : "No se pudieron cargar los talentos"))
+      .finally(() => setCargandoTalentosCliente(false));
+  }, [talentoIdCliente]);
+
+  async function buscarReporteTalento() {
+    if (!talentoIdCliente || !talentoIdUsuario) return;
+    setCargandoReporteTalento(true);
+    setBuscoReporteTalento(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({
+        idCliente: talentoIdCliente,
+        idUsuario: String(talentoIdUsuario),
+        anioDesde: String(talentoDesdeAnio),
+        mesDesde: String(talentoDesdeMes),
+        anioHasta: String(talentoHastaAnio),
+        mesHasta: String(talentoHastaMes),
+      });
+      const reporte = await fetchJson<ReporteTalentoResponse>(`/api/reportes/talento?${params.toString()}`);
+      setReporteTalento(reporte);
+      const vigente = reporte.historialCosto.find((c) => !c.fecha_hasta);
+      setCostoMensualForm(vigente ? String(vigente.costo_mensual) : "");
+      setIdMonedaCostoForm(vigente ? String(monedas.find((m) => m.codigo === vigente.codigo_moneda)?.id_maestro ?? "") : "");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo generar el reporte de talento");
+    }
+    setCargandoReporteTalento(false);
+  }
+
+  function exportarReporteTalento() {
+    if (!talentoIdCliente || !talentoIdUsuario) return;
+    const params = new URLSearchParams({
+      idCliente: talentoIdCliente,
+      idUsuario: String(talentoIdUsuario),
+      anioDesde: String(talentoDesdeAnio),
+      mesDesde: String(talentoDesdeMes),
+      anioHasta: String(talentoHastaAnio),
+      mesHasta: String(talentoHastaMes),
+    });
+    const { primero } = primerYUltimoDiaMes(talentoDesdeAnio, talentoDesdeMes);
+    const { ultimo } = primerYUltimoDiaMes(talentoHastaAnio, talentoHastaMes);
+    descargarExcel(`/api/reportes/talento/exportar?${params.toString()}`, nombreReporte("Talent", primero, ultimo));
+  }
+
+  async function guardarCostoTalento() {
+    if (!talentoIdUsuario || !costoMensualForm || !idMonedaCostoForm) return;
+    setGuardandoCosto(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/usuarios/${talentoIdUsuario}/costo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ costoMensual: Number(costoMensualForm), idMoneda: Number(idMonedaCostoForm) }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      await buscarReporteTalento();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo guardar el costo mensual");
+    }
+    setGuardandoCosto(false);
+  }
 
   // Clases: por profesor / por grupo (solo Admin, solo si hay proyectos tipo Clases)
   const [clasesFechaInicio, setClasesFechaInicio] = useState(fechaInicioInicial);
@@ -554,6 +655,18 @@ export default function ReportesClient({
             }`}
           >
             Proyeccion
+          </button>
+        )}
+        {puedeVerTalento && (
+          <button
+            onClick={() => setVista("talento")}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
+              vista === "talento"
+                ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+                : "border-transparent text-gray-500"
+            }`}
+          >
+            Talento
           </button>
         )}
         {esAdmin && tieneClases && (
@@ -1241,6 +1354,337 @@ export default function ReportesClient({
               </table>
             )}
           </div>
+        </div>
+      )}
+
+      {vista === "talento" && puedeVerTalento && (
+        <div className="space-y-4">
+          <div className="rounded-lg border border-gray-200 bg-white p-4 flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Cliente</label>
+              <select
+                value={talentoIdCliente}
+                onChange={(e) => setTalentoIdCliente(e.target.value)}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+              >
+                <option value="">Selecciona un cliente</option>
+                {clientesUnicos.map((c) => (
+                  <option key={c.id_cliente} value={c.id_cliente}>
+                    {c.cliente}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1 min-w-[260px]">
+              <label className="text-sm font-medium">Talento</label>
+              <BuscadorTalento
+                talentos={talentosDeCliente}
+                idSeleccionado={talentoIdUsuario}
+                onSeleccionar={setTalentoIdUsuario}
+                placeholder={
+                  !talentoIdCliente
+                    ? "Primero selecciona un cliente..."
+                    : cargandoTalentosCliente
+                      ? "Cargando talentos..."
+                      : "Escribe para buscar un talento..."
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Desde</label>
+              <div className="flex gap-1">
+                <select
+                  value={talentoDesdeMes}
+                  onChange={(e) => setTalentoDesdeMes(Number(e.target.value))}
+                  className="rounded-md border border-gray-300 px-2 py-2 text-sm"
+                >
+                  {MESES.map((m, i) => (
+                    <option key={m} value={i + 1}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  value={talentoDesdeAnio}
+                  onChange={(e) => setTalentoDesdeAnio(Number(e.target.value))}
+                  className="w-20 rounded-md border border-gray-300 px-2 py-2 text-sm"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Hasta</label>
+              <div className="flex gap-1">
+                <select
+                  value={talentoHastaMes}
+                  onChange={(e) => setTalentoHastaMes(Number(e.target.value))}
+                  className="rounded-md border border-gray-300 px-2 py-2 text-sm"
+                >
+                  {MESES.map((m, i) => (
+                    <option key={m} value={i + 1}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  value={talentoHastaAnio}
+                  onChange={(e) => setTalentoHastaAnio(Number(e.target.value))}
+                  className="w-20 rounded-md border border-gray-300 px-2 py-2 text-sm"
+                />
+              </div>
+            </div>
+            <button
+              onClick={buscarReporteTalento}
+              disabled={cargandoReporteTalento || !talentoIdCliente || !talentoIdUsuario}
+              className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+            >
+              {cargandoReporteTalento && <Spinner />}
+              Generar reporte
+            </button>
+            <button
+              onClick={exportarReporteTalento}
+              disabled={exportando || !buscoReporteTalento || !reporteTalento}
+              className="inline-flex items-center gap-2 rounded-md border border-gray-300 text-sm font-medium px-4 py-2 disabled:opacity-50"
+            >
+              {exportando && <Spinner />}
+              Exportar Excel
+            </button>
+          </div>
+
+          {cargandoReporteTalento && <CargandoInline texto="Calculando evolucion del talento..." />}
+
+          {buscoReporteTalento && !cargandoReporteTalento && reporteTalento && (
+            <>
+              <p className="text-xs text-gray-500">
+                {reporteTalento.colaborador} · {reporteTalento.cliente}. Lo planificado usa la tarifa vigente
+                hoy; para el monto exacto de un mes ya cerrado, usa el reporte de Resumen.
+              </p>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Pico de horas</p>
+                  {reporteTalento.picoHoras ? (
+                    <p className="mt-1 text-lg font-semibold text-gray-900">
+                      {reporteTalento.picoHoras.horas_reales?.toFixed(2)} h
+                      <span className="text-sm font-normal text-gray-500">
+                        {" "}
+                        en {MESES[reporteTalento.picoHoras.mes - 1]} {reporteTalento.picoHoras.anio}
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-sm text-gray-400">Sin datos aun</p>
+                  )}
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Pico de monto</p>
+                  {reporteTalento.picoMonto ? (
+                    <p className="mt-1 text-lg font-semibold text-gray-900 whitespace-nowrap">
+                      {formatearMoneda(reporteTalento.picoMonto.ingreso_real ?? 0)}{" "}
+                      {reporteTalento.picoMonto.codigo_moneda}
+                      <span className="text-sm font-normal text-gray-500">
+                        {" "}
+                        en {MESES[reporteTalento.picoMonto.mes - 1]} {reporteTalento.picoMonto.anio}
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-sm text-gray-400">Sin datos aun</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-white overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-left text-gray-500">
+                    <tr>
+                      <th className="px-4 py-2 font-medium">Mes</th>
+                      <th className="px-4 py-2 font-medium">Estado</th>
+                      <th className="px-4 py-2 font-medium text-right">Horas reales</th>
+                      <th className="px-4 py-2 font-medium text-right">Horas planificadas</th>
+                      <th className="px-4 py-2 font-medium text-right">Monto facturado</th>
+                      <th className="px-4 py-2 font-medium text-right">Monto planificado</th>
+                      <th className="px-4 py-2 font-medium text-right">Costo mensual</th>
+                      <th className="px-4 py-2 font-medium text-right">Margen $</th>
+                      <th className="px-4 py-2 font-medium text-right">Margen %</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {reporteTalento.meses.map((m) => (
+                      <tr key={`${m.anio}-${m.mes}`}>
+                        <td className="px-4 py-2 whitespace-nowrap">
+                          {MESES[m.mes - 1]} {m.anio}
+                        </td>
+                        <td className="px-4 py-2 text-gray-500">
+                          {m.es_ejecutado === 1 ? "Ejecutado" : m.horas_reales !== null ? "En curso" : "Futuro"}
+                        </td>
+                        <td className="px-4 py-2 text-right whitespace-nowrap">
+                          {m.horas_reales === null ? "-" : m.horas_reales.toFixed(2)}
+                        </td>
+                        <td className="px-4 py-2 text-right whitespace-nowrap">{m.horas_planificadas.toFixed(2)}</td>
+                        <td className="px-4 py-2 text-right whitespace-nowrap">
+                          {m.ingreso_real === null ? "-" : `${formatearMoneda(m.ingreso_real)} ${m.codigo_moneda}`}
+                        </td>
+                        <td className="px-4 py-2 text-right whitespace-nowrap">
+                          {m.codigo_moneda ? `${formatearMoneda(m.ingreso_planificado)} ${m.codigo_moneda}` : "-"}
+                        </td>
+                        <td className="px-4 py-2 text-right whitespace-nowrap">
+                          {m.costo_mensual === null ? "-" : `${formatearMoneda(m.costo_mensual)} ${m.codigo_moneda}`}
+                        </td>
+                        <td
+                          className={`px-4 py-2 text-right whitespace-nowrap ${
+                            m.margen_dinero === null ? "" : m.margen_dinero < 0 ? "text-red-600" : "text-green-600"
+                          }`}
+                        >
+                          {m.margen_dinero === null ? "-" : `${formatearMoneda(m.margen_dinero)} ${m.codigo_moneda}`}
+                        </td>
+                        <td
+                          className={`px-4 py-2 text-right whitespace-nowrap ${
+                            m.margen_pct === null ? "" : m.margen_pct < 0 ? "text-red-600" : "text-green-600"
+                          }`}
+                        >
+                          {m.margen_pct === null ? "-" : `${m.margen_pct.toFixed(1)}%`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
+                <h3 className="text-sm font-semibold">Costo mensual (sueldo)</h3>
+                {esAdmin ? (
+                  <div className="flex flex-wrap items-end gap-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="Costo mensual"
+                      value={costoMensualForm}
+                      onChange={(e) => setCostoMensualForm(e.target.value)}
+                      className="w-40 rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    />
+                    <select
+                      value={idMonedaCostoForm}
+                      onChange={(e) => setIdMonedaCostoForm(e.target.value)}
+                      className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    >
+                      <option value="">Moneda</option>
+                      {monedas.map((m) => (
+                        <option key={m.id_maestro} value={m.id_maestro}>
+                          {m.valor}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={guardarCostoTalento}
+                      disabled={guardandoCosto || !costoMensualForm || !idMonedaCostoForm}
+                      className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+                    >
+                      {guardandoCosto && <Spinner />}
+                      Guardar
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">Solo el Admin puede editar el costo mensual.</p>
+                )}
+
+                {reporteTalento.historialCosto.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setMostrarHistorialCosto((v) => !v)}
+                    className="text-xs text-gray-500 hover:text-gray-900 underline"
+                  >
+                    {mostrarHistorialCosto ? "Ocultar historial" : "Ver historial de costo"}
+                  </button>
+                )}
+                {mostrarHistorialCosto && (
+                  <table className="w-full text-sm">
+                    <thead className="text-left text-gray-500">
+                      <tr>
+                        <th className="pr-4 py-1 font-medium">Costo mensual</th>
+                        <th className="pr-4 py-1 font-medium">Desde</th>
+                        <th className="pr-4 py-1 font-medium">Hasta</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {reporteTalento.historialCosto.map((h) => (
+                        <tr key={h.id_talento_costo}>
+                          <td className="pr-4 py-1 whitespace-nowrap">
+                            {formatearMoneda(h.costo_mensual)} {h.codigo_moneda}
+                          </td>
+                          <td className="pr-4 py-1">{h.fecha_desde.slice(0, 10)}</td>
+                          <td className="pr-4 py-1">{h.fecha_hasta ? h.fecha_hasta.slice(0, 10) : "Vigente"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-2">
+                  <h3 className="text-sm font-semibold">Historial de perfiles</h3>
+                  {reporteTalento.historialPerfiles.length === 0 ? (
+                    <p className="text-xs text-gray-400">Sin cambios de perfil registrados</p>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead className="text-left text-gray-500">
+                        <tr>
+                          <th className="pr-4 py-1 font-medium">Perfil</th>
+                          <th className="pr-4 py-1 font-medium">Desde</th>
+                          <th className="pr-4 py-1 font-medium">Hasta</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {reporteTalento.historialPerfiles.map((h) => (
+                          <tr key={h.id_usuario_proyecto_perfil}>
+                            <td className="pr-4 py-1">{h.perfil}</td>
+                            <td className="pr-4 py-1">{h.fecha_desde.slice(0, 10)}</td>
+                            <td className="pr-4 py-1">{h.fecha_hasta ? h.fecha_hasta.slice(0, 10) : "Vigente"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-2">
+                  <h3 className="text-sm font-semibold">Historial de tarifa por hora</h3>
+                  {reporteTalento.historialTarifas.length === 0 ? (
+                    <p className="text-xs text-gray-400">Sin cambios de tarifa registrados</p>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead className="text-left text-gray-500">
+                        <tr>
+                          <th className="pr-4 py-1 font-medium">Perfil</th>
+                          <th className="pr-4 py-1 font-medium text-right">Tarifa</th>
+                          <th className="pr-4 py-1 font-medium">Desde</th>
+                          <th className="pr-4 py-1 font-medium">Hasta</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {reporteTalento.historialTarifas.map((h) => (
+                          <tr key={h.id_perfil_tarifa}>
+                            <td className="pr-4 py-1">{h.perfil}</td>
+                            <td className="pr-4 py-1 text-right whitespace-nowrap">
+                              {formatearMoneda(h.tarifa)} {h.codigo_moneda}
+                            </td>
+                            <td className="pr-4 py-1">{h.fecha_desde.slice(0, 10)}</td>
+                            <td className="pr-4 py-1">{h.fecha_hasta ? h.fecha_hasta.slice(0, 10) : "Vigente"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {!buscoReporteTalento && !cargandoReporteTalento && (
+            <p className="text-sm text-gray-400 text-center py-6">
+              Selecciona un cliente, un talento y un rango de meses, y genera el reporte
+            </p>
+          )}
         </div>
       )}
 
