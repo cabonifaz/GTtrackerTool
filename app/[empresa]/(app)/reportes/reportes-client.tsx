@@ -144,6 +144,17 @@ export default function ReportesClient({
   const [guardandoCosto, setGuardandoCosto] = useState(false);
   const [mostrarHistorialCosto, setMostrarHistorialCosto] = useState(false);
 
+  // Tipo de cambio mensual (no es por talento, aplica a toda la
+  // empresa) -- convierte el costo a la moneda de facturacion al
+  // calcular el margen cuando son distintas.
+  const [tcAnio, setTcAnio] = useState(hoy.getFullYear());
+  const [tcMes, setTcMes] = useState(hoy.getMonth() + 1);
+  const [tcIdMonedaOrigen, setTcIdMonedaOrigen] = useState("");
+  const [tcIdMonedaDestino, setTcIdMonedaDestino] = useState("");
+  const [tcTasa, setTcTasa] = useState("");
+  const [guardandoTc, setGuardandoTc] = useState(false);
+  const [mostrarTiposCambio, setMostrarTiposCambio] = useState(false);
+
   useEffect(() => {
     if (!talentoIdCliente) {
       setTalentosDeCliente([]);
@@ -216,6 +227,31 @@ export default function ReportesClient({
       setError(err instanceof Error ? err.message : "No se pudo guardar el costo mensual");
     }
     setGuardandoCosto(false);
+  }
+
+  async function guardarTipoCambio() {
+    if (!tcIdMonedaOrigen || !tcIdMonedaDestino || !tcTasa) return;
+    setGuardandoTc(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/tipos-cambio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          anio: tcAnio,
+          mes: tcMes,
+          idMonedaOrigen: Number(tcIdMonedaOrigen),
+          idMonedaDestino: Number(tcIdMonedaDestino),
+          tasa: Number(tcTasa),
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setTcTasa("");
+      await buscarReporteTalento();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo guardar el tipo de cambio");
+    }
+    setGuardandoTc(false);
   }
 
   // Clases: por profesor / por grupo (solo Admin, solo si hay proyectos tipo Clases)
@@ -1619,6 +1655,110 @@ export default function ReportesClient({
                   </table>
                 )}
               </div>
+
+              {esAdmin && (
+                <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
+                  <div>
+                    <h3 className="text-sm font-semibold">Tipo de cambio mensual</h3>
+                    <p className="text-xs text-gray-500">
+                      Para convertir el costo cuando esta en una moneda distinta a la facturada (aplica a toda
+                      la empresa, no solo a este talento).
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-end gap-2">
+                    <select
+                      value={tcMes}
+                      onChange={(e) => setTcMes(Number(e.target.value))}
+                      className="rounded-md border border-gray-300 px-2 py-2 text-sm"
+                    >
+                      {MESES.map((m, i) => (
+                        <option key={m} value={i + 1}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      value={tcAnio}
+                      onChange={(e) => setTcAnio(Number(e.target.value))}
+                      className="w-20 rounded-md border border-gray-300 px-2 py-2 text-sm"
+                    />
+                    <select
+                      value={tcIdMonedaOrigen}
+                      onChange={(e) => setTcIdMonedaOrigen(e.target.value)}
+                      className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    >
+                      <option value="">1 moneda origen</option>
+                      {monedas.map((m) => (
+                        <option key={m.id_maestro} value={m.id_maestro}>
+                          {m.codigo}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-sm text-gray-400">=</span>
+                    <input
+                      type="number"
+                      step="0.000001"
+                      placeholder="Tasa"
+                      value={tcTasa}
+                      onChange={(e) => setTcTasa(e.target.value)}
+                      className="w-28 rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    />
+                    <select
+                      value={tcIdMonedaDestino}
+                      onChange={(e) => setTcIdMonedaDestino(e.target.value)}
+                      className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    >
+                      <option value="">moneda destino</option>
+                      {monedas.map((m) => (
+                        <option key={m.id_maestro} value={m.id_maestro}>
+                          {m.codigo}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={guardarTipoCambio}
+                      disabled={guardandoTc || !tcIdMonedaOrigen || !tcIdMonedaDestino || !tcTasa}
+                      className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+                    >
+                      {guardandoTc && <Spinner />}
+                      Guardar
+                    </button>
+                  </div>
+
+                  {reporteTalento.tiposCambio.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setMostrarTiposCambio((v) => !v)}
+                      className="text-xs text-gray-500 hover:text-gray-900 underline"
+                    >
+                      {mostrarTiposCambio ? "Ocultar tipos de cambio" : "Ver tipos de cambio registrados"}
+                    </button>
+                  )}
+                  {mostrarTiposCambio && (
+                    <table className="w-full text-sm">
+                      <thead className="text-left text-gray-500">
+                        <tr>
+                          <th className="pr-4 py-1 font-medium">Mes</th>
+                          <th className="pr-4 py-1 font-medium">Conversion</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {reporteTalento.tiposCambio.map((t) => (
+                          <tr key={t.id_tipo_cambio}>
+                            <td className="pr-4 py-1 whitespace-nowrap">
+                              {MESES[t.mes - 1]} {t.anio}
+                            </td>
+                            <td className="pr-4 py-1 whitespace-nowrap">
+                              1 {t.codigo_moneda_origen} = {t.tasa} {t.codigo_moneda_destino}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-2">

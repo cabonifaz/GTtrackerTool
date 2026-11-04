@@ -2,7 +2,17 @@ import { BusinessError, executeProcedure } from "@/lib/db";
 import { listarClientes } from "@/lib/services/clienteService";
 import { reporteProyeccionCliente } from "@/lib/services/reporteService";
 import { historialCostoTalento } from "@/lib/services/talentoCostoService";
-import { CodigoRol, ReporteTalentoMesRow, ReporteTalentoResponse, TalentoCostoHistorico, TalentoPerfilHistorico, TalentoTarifaHistorico, Usuario } from "@/lib/types";
+import { listarTiposCambio } from "@/lib/services/tipoCambioService";
+import {
+  CodigoRol,
+  ReporteTalentoMesRow,
+  ReporteTalentoResponse,
+  TalentoCostoHistorico,
+  TalentoPerfilHistorico,
+  TalentoTarifaHistorico,
+  TipoCambio,
+  Usuario,
+} from "@/lib/types";
 
 export function talentosPorCliente(idCliente: number, idEmpresaActor: number) {
   return executeProcedure<Usuario>("sp_talentos_por_cliente_listar", [idCliente, idEmpresaActor]);
@@ -51,6 +61,52 @@ function costoVigenteEnMes(historialCosto: TalentoCostoHistorico[], anio: number
   return historialCosto.reduce((masAntiguo, c) => (c.fecha_desde < masAntiguo.fecha_desde ? c : masAntiguo));
 }
 
+// Tasa a usar para convertir costoOrigen -> monedaDestino en un mes
+// dado: la mas reciente conocida AL O ANTES de ese mes (igual criterio
+// que la tarifa "vigente historicamente"); si no hay ninguna hasta ese
+// mes, se usa la mas antigua conocida (mismo respaldo que el costo
+// mensual, en vez de dejar el margen vacio por falta de dato historico).
+function tasaVigenteEnMes(
+  tiposCambio: TipoCambio[],
+  codigoOrigen: string,
+  codigoDestino: string,
+  anio: number,
+  mes: number
+): number | null {
+  const candidatos = tiposCambio.filter(
+    (t) => t.codigo_moneda_origen === codigoOrigen && t.codigo_moneda_destino === codigoDestino
+  );
+  if (candidatos.length === 0) return null;
+  const idx = indiceMes(anio, mes);
+  const hastaEseMes = candidatos.filter((t) => indiceMes(t.anio, t.mes) <= idx);
+  const elegido =
+    hastaEseMes.length > 0
+      ? hastaEseMes.reduce((masReciente, t) =>
+          indiceMes(t.anio, t.mes) > indiceMes(masReciente.anio, masReciente.mes) ? t : masReciente
+        )
+      : candidatos.reduce((masAntiguo, t) =>
+          indiceMes(t.anio, t.mes) < indiceMes(masAntiguo.anio, masAntiguo.mes) ? t : masAntiguo
+        );
+  return Number(elegido.tasa);
+}
+
+// Convierte el costo mensual a la moneda de facturacion de ese mes. Si
+// coinciden las monedas, no hace falta tasa. Si no hay ninguna tasa
+// cargada para ese par de monedas, devuelve null (el margen queda en
+// "-" en vez de mostrar un numero calculado mezclando monedas distintas).
+function convertirCostoAMoneda(
+  costo: TalentoCostoHistorico,
+  codigoDestino: string | null,
+  tiposCambio: TipoCambio[],
+  anio: number,
+  mes: number
+): number | null {
+  const valor = Number(costo.costo_mensual);
+  if (!codigoDestino || costo.codigo_moneda === codigoDestino) return valor;
+  const tasa = tasaVigenteEnMes(tiposCambio, costo.codigo_moneda, codigoDestino, anio, mes);
+  return tasa === null ? null : valor * tasa;
+}
+
 // Reutiliza sp_reporte_proyeccion_cliente (ya resuelve real/planificado
 // mes a mes, respetando el congelado de un mes cerrado) filtrando por un
 // solo talento, en vez de duplicar ese calculo. El costo/margen se
@@ -90,11 +146,12 @@ export async function construirReporteTalento(
   const mesesAtras = Math.max(0, idxHoy - idxDesde);
   const mesesAdelante = Math.max(0, idxHasta - idxHoy);
 
-  const [proyeccion, historialCosto, historialPerfiles, historialTarifas] = await Promise.all([
+  const [proyeccion, historialCosto, historialPerfiles, historialTarifas, tiposCambio] = await Promise.all([
     reporteProyeccionCliente(idCliente, mesesAtras, mesesAdelante, idEmpresa),
     historialCostoTalento(idUsuario, idEmpresa),
     historialPerfilesTalento(idUsuario, idProyecto, idEmpresa),
     historialTarifasTalento(idUsuario, idProyecto, idEmpresa),
+    listarTiposCambio(idEmpresa),
   ]);
 
   const filasTalento = proyeccion.filter(
@@ -105,7 +162,7 @@ export async function construirReporteTalento(
     .sort((a, b) => indiceMes(a.anio, a.mes) - indiceMes(b.anio, b.mes))
     .map((r) => {
       const costo = costoVigenteEnMes(historialCosto, r.anio, r.mes);
-      const costoMensual = costo ? Number(costo.costo_mensual) : null;
+      const costoMensual = costo ? convertirCostoAMoneda(costo, r.codigo_moneda, tiposCambio, r.anio, r.mes) : null;
       const ingresoReal = r.ingreso_real === null ? null : Number(r.ingreso_real);
       const margenDinero = ingresoReal !== null && costoMensual !== null ? ingresoReal - costoMensual : null;
       const margenPct =
@@ -142,5 +199,6 @@ export async function construirReporteTalento(
     historialPerfiles,
     historialTarifas,
     historialCosto,
+    tiposCambio,
   };
 }

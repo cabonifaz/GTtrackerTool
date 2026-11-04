@@ -546,6 +546,17 @@ export interface ReporteTalentoMesRow {
   margen_pct: number | null;
 }
 
+export interface TipoCambio {
+  id_tipo_cambio: number;
+  anio: number;
+  mes: number;
+  id_moneda_origen: number;
+  codigo_moneda_origen: string;
+  id_moneda_destino: number;
+  codigo_moneda_destino: string;
+  tasa: number;
+}
+
 export interface ReporteTalentoResponse {
   colaborador: string;
   cliente: string;
@@ -555,6 +566,7 @@ export interface ReporteTalentoResponse {
   historialPerfiles: TalentoPerfilHistorico[];
   historialTarifas: TalentoTarifaHistorico[];
   historialCosto: TalentoCostoHistorico[];
+  tiposCambio: TipoCambio[];
 }
 
 export interface ImportarFilaResultado {

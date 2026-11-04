@@ -109,6 +109,21 @@ export async function GET(req: NextRequest) {
           fecha_hasta: h.fecha_hasta ?? "Vigente",
         })),
       },
+      {
+        nombre: "Tipos de cambio",
+        columnas: [
+          { header: "Mes", key: "mes", width: 14 },
+          { header: "Moneda origen", key: "origen", width: 14 },
+          { header: "Tasa", key: "tasa", width: 12, numFmt: "0.000000" },
+          { header: "Moneda destino", key: "destino", width: 14 },
+        ],
+        filas: reporte.tiposCambio.map((t) => ({
+          mes: `${MESES[t.mes - 1]} ${t.anio}`,
+          origen: t.codigo_moneda_origen,
+          tasa: Number(t.tasa),
+          destino: t.codigo_moneda_destino,
+        })),
+      },
     ]);
 
     const primero = primerYUltimoDiaMes(anioDesde, mesDesde).primero;
