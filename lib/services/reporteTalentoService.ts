@@ -1,10 +1,13 @@
 import { BusinessError, executeProcedure } from "@/lib/db";
+import { obtenerTipoCambioSolPorDolarBcrp } from "@/lib/services/bcrpService";
 import { listarClientes } from "@/lib/services/clienteService";
+import { listarMaestro } from "@/lib/services/maestroService";
 import { reporteProyeccionCliente } from "@/lib/services/reporteService";
 import { historialCostoTalento } from "@/lib/services/talentoCostoService";
-import { listarTiposCambio } from "@/lib/services/tipoCambioService";
+import { asignarTipoCambio, listarTiposCambio } from "@/lib/services/tipoCambioService";
 import {
   CodigoRol,
+  ProyeccionRow,
   ReporteTalentoMesRow,
   ReporteTalentoResponse,
   TalentoCostoHistorico,
@@ -107,6 +110,91 @@ function convertirCostoAMoneda(
   return tasa === null ? null : valor * tasa;
 }
 
+const CREADO_POR_BCRP = "BCRP (automatico)";
+
+// Unico par que cubre la serie del BCRP que usamos (Sol/Dolar). "tasa"
+// siempre es "unidades de destino por 1 de origen".
+function tasaDesdeBcrp(codigoOrigen: string, codigoDestino: string, solPorDolar: number): number | null {
+  if (codigoOrigen === "USD" && codigoDestino === "PEN") return solPorDolar;
+  if (codigoOrigen === "PEN" && codigoDestino === "USD") return 1 / solPorDolar;
+  return null;
+}
+
+function parSoportadoPorBcrp(codigoOrigen: string, codigoDestino: string): boolean {
+  return (codigoOrigen === "USD" && codigoDestino === "PEN") || (codigoOrigen === "PEN" && codigoDestino === "USD");
+}
+
+// Si a algun mes del reporte le falta el tipo de cambio exacto (costo
+// en una moneda distinta a la facturada, sin tasa cargada para ese mes
+// puntual), se intenta traer el TC de cierre de ese mes de la API
+// publica del BCRP y se guarda en tipos_cambio -- la proxima vez que se
+// pida este mismo mes ya esta en BD y no se vuelve a consultar la API.
+// Si el par no es Sol/Dolar o el BCRP no responde, se sigue sin tasa (el
+// calculo de margen tiene su propio respaldo con la tasa mas cercana
+// conocida).
+async function completarTiposCambioFaltantesDesdeBcrp(
+  filasTalento: ProyeccionRow[],
+  historialCosto: TalentoCostoHistorico[],
+  tiposCambio: TipoCambio[],
+  idEmpresa: number
+): Promise<TipoCambio[]> {
+  const faltantes = new Map<string, { anio: number; mes: number; codigoOrigen: string; codigoDestino: string }>();
+  for (const r of filasTalento) {
+    const costo = costoVigenteEnMes(historialCosto, r.anio, r.mes);
+    if (!costo || !r.codigo_moneda || costo.codigo_moneda === r.codigo_moneda) continue;
+    if (!parSoportadoPorBcrp(costo.codigo_moneda, r.codigo_moneda)) continue;
+    const yaExacto = tiposCambio.some(
+      (t) =>
+        t.codigo_moneda_origen === costo.codigo_moneda &&
+        t.codigo_moneda_destino === r.codigo_moneda &&
+        t.anio === r.anio &&
+        t.mes === r.mes
+    );
+    if (yaExacto) continue;
+    faltantes.set(`${r.anio}-${r.mes}-${costo.codigo_moneda}-${r.codigo_moneda}`, {
+      anio: r.anio,
+      mes: r.mes,
+      codigoOrigen: costo.codigo_moneda,
+      codigoDestino: r.codigo_moneda,
+    });
+  }
+  if (faltantes.size === 0) return tiposCambio;
+
+  const monedas = await listarMaestro("MONEDA");
+  const idPorCodigo = new Map(monedas.map((m) => [m.codigo, m.id_maestro]));
+
+  const nuevas: TipoCambio[] = [];
+  await Promise.all(
+    Array.from(faltantes.values()).map(async (f) => {
+      const solPorDolar = await obtenerTipoCambioSolPorDolarBcrp(f.anio, f.mes);
+      if (solPorDolar === null) return;
+      const tasa = tasaDesdeBcrp(f.codigoOrigen, f.codigoDestino, solPorDolar);
+      const idOrigen = idPorCodigo.get(f.codigoOrigen);
+      const idDestino = idPorCodigo.get(f.codigoDestino);
+      if (tasa === null || !idOrigen || !idDestino) return;
+      try {
+        await asignarTipoCambio(f.anio, f.mes, idOrigen, idDestino, tasa, idEmpresa, CREADO_POR_BCRP);
+        nuevas.push({
+          id_tipo_cambio: 0,
+          anio: f.anio,
+          mes: f.mes,
+          id_moneda_origen: idOrigen,
+          codigo_moneda_origen: f.codigoOrigen,
+          id_moneda_destino: idDestino,
+          codigo_moneda_destino: f.codigoDestino,
+          tasa,
+        });
+      } catch {
+        // Si falla el guardado (ej. otra solicitud concurrente lo guardo
+        // primero), no es grave: el calculo de este request igual tiene
+        // la tasa en memoria, y la proxima consulta la encuentra en BD.
+      }
+    })
+  );
+
+  return [...tiposCambio, ...nuevas];
+}
+
 // Reutiliza sp_reporte_proyeccion_cliente (ya resuelve real/planificado
 // mes a mes, respetando el congelado de un mes cerrado) filtrando por un
 // solo talento, en vez de duplicar ese calculo. El costo/margen se
@@ -158,11 +246,20 @@ export async function construirReporteTalento(
     (r) => r.id_usuario === idUsuario && indiceMes(r.anio, r.mes) >= idxDesde && indiceMes(r.anio, r.mes) <= idxHasta
   );
 
+  const tiposCambioCompletos = await completarTiposCambioFaltantesDesdeBcrp(
+    filasTalento,
+    historialCosto,
+    tiposCambio,
+    idEmpresa
+  );
+
   const meses: ReporteTalentoMesRow[] = filasTalento
     .sort((a, b) => indiceMes(a.anio, a.mes) - indiceMes(b.anio, b.mes))
     .map((r) => {
       const costo = costoVigenteEnMes(historialCosto, r.anio, r.mes);
-      const costoMensual = costo ? convertirCostoAMoneda(costo, r.codigo_moneda, tiposCambio, r.anio, r.mes) : null;
+      const costoMensual = costo
+        ? convertirCostoAMoneda(costo, r.codigo_moneda, tiposCambioCompletos, r.anio, r.mes)
+        : null;
       const ingresoReal = r.ingreso_real === null ? null : Number(r.ingreso_real);
       const margenDinero = ingresoReal !== null && costoMensual !== null ? ingresoReal - costoMensual : null;
       const margenPct =
@@ -199,6 +296,6 @@ export async function construirReporteTalento(
     historialPerfiles,
     historialTarifas,
     historialCosto,
-    tiposCambio,
+    tiposCambio: tiposCambioCompletos,
   };
 }
