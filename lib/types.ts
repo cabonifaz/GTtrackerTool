@@ -569,6 +569,13 @@ export interface ReporteTalentoResponse {
   tiposCambio: TipoCambio[];
 }
 
+export interface ResumenHorasExtraRow {
+  id_usuario: number;
+  colaborador: string;
+  horas_pendientes: number;
+  horas_aprobadas: number;
+}
+
 export interface ImportarFilaResultado {
   fila: number;
   ok: boolean;

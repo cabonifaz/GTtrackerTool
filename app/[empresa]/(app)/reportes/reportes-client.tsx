@@ -13,6 +13,7 @@ import {
   ReporteTalentoResponse,
   ReporteTareaRow,
   ResumenAvanceRow,
+  ResumenHorasExtraRow,
   Usuario,
 } from "@/lib/types";
 import { CargandoInline, Spinner } from "@/components/Spinner";
@@ -32,7 +33,7 @@ const MESES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
-type Vista = "detalle" | "por-tarea" | "costos" | "resumen" | "proyeccion" | "talento" | "clases";
+type Vista = "detalle" | "por-tarea" | "costos" | "resumen" | "proyeccion" | "talento" | "horas-extra" | "clases";
 
 const SEMAFORO: Record<ResumenAvanceRow["semaforo"], { color: string; label: string }> = {
   VERDE: { color: "bg-green-500", label: "Al dia" },
@@ -85,6 +86,14 @@ export default function ReportesClient({
   const [filasCostos, setFilasCostos] = useState<ReporteCostoRow[]>([]);
   const [cargandoCostos, setCargandoCostos] = useState(false);
   const [buscoCostos, setBuscoCostos] = useState(false);
+
+  // Indicador de horas extra pendientes/aprobadas por talento (solo Admin)
+  const [heIdProyecto, setHeIdProyecto] = useState(idProyectoUnico);
+  const [heAnio, setHeAnio] = useState(hoy.getFullYear());
+  const [heMes, setHeMes] = useState(hoy.getMonth() + 1);
+  const [filasHorasExtra, setFilasHorasExtra] = useState<ResumenHorasExtraRow[]>([]);
+  const [cargandoHorasExtra, setCargandoHorasExtra] = useState(false);
+  const [buscoHorasExtra, setBuscoHorasExtra] = useState(false);
 
   // Resumen de avance + recordatorios (solo Admin)
   const [resumenIdProyecto, setResumenIdProyecto] = useState(idProyectoUnico);
@@ -420,6 +429,24 @@ export default function ReportesClient({
     setCargandoCostos(false);
   }
 
+  async function buscarHorasExtraReporte() {
+    if (!heIdProyecto) return;
+    setCargandoHorasExtra(true);
+    setBuscoHorasExtra(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({
+        idProyecto: heIdProyecto,
+        anio: String(heAnio),
+        mes: String(heMes),
+      });
+      setFilasHorasExtra(await fetchJson<ResumenHorasExtraRow[]>(`/api/reportes/horas-extra?${params.toString()}`));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo generar el indicador de horas extra");
+    }
+    setCargandoHorasExtra(false);
+  }
+
   async function cargarCierreFacturacion() {
     if (!resumenIdProyecto) return;
     setCargandoCierre(true);
@@ -703,6 +730,18 @@ export default function ReportesClient({
             }`}
           >
             Talento
+          </button>
+        )}
+        {esAdmin && (
+          <button
+            onClick={() => setVista("horas-extra")}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
+              vista === "horas-extra"
+                ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+                : "border-transparent text-gray-500"
+            }`}
+          >
+            Horas extra
           </button>
         )}
         {esAdmin && tieneClases && (
@@ -1825,6 +1864,128 @@ export default function ReportesClient({
               Selecciona un cliente, un talento y un rango de meses, y genera el reporte
             </p>
           )}
+        </div>
+      )}
+
+      {vista === "horas-extra" && esAdmin && (
+        <div className="space-y-4">
+          <div className="rounded-lg border border-gray-200 bg-white p-4 flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Cliente / Proyecto</label>
+              <select
+                value={heIdProyecto}
+                onChange={(e) => setHeIdProyecto(e.target.value)}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+              >
+                <option value="">Selecciona un proyecto</option>
+                {proyectos.map((p) => (
+                  <option key={p.id_proyecto} value={p.id_proyecto}>
+                    {p.nombre}
+                    {p.cliente ? ` (${p.cliente})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Mes</label>
+              <select
+                value={heMes}
+                onChange={(e) => setHeMes(Number(e.target.value))}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+              >
+                {MESES.map((m, i) => (
+                  <option key={m} value={i + 1}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Anio</label>
+              <input
+                type="number"
+                value={heAnio}
+                onChange={(e) => setHeAnio(Number(e.target.value))}
+                className="w-24 rounded-md border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <button
+              onClick={buscarHorasExtraReporte}
+              disabled={cargandoHorasExtra || !heIdProyecto}
+              className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+            >
+              {cargandoHorasExtra && <Spinner />}
+              Generar reporte
+            </button>
+          </div>
+
+          {buscoHorasExtra && !cargandoHorasExtra && (
+            <p className="text-xs text-gray-500">
+              Horas extra PENDIENTES de aprobar o ya APROBADAS ese mes, por talento asignado a este proyecto
+              (no incluye las rechazadas).
+            </p>
+          )}
+
+          {buscoHorasExtra && !cargandoHorasExtra && filasHorasExtra.some((f) => f.horas_pendientes > 0) && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm">
+              <p className="font-medium text-amber-800">
+                ⚠️ {filasHorasExtra.filter((f) => f.horas_pendientes > 0).length} talento
+                {filasHorasExtra.filter((f) => f.horas_pendientes > 0).length === 1 ? "" : "s"} con horas extra
+                pendientes de aprobar este mes
+              </p>
+            </div>
+          )}
+
+          <div className="rounded-lg border border-gray-200 bg-white overflow-x-auto">
+            {cargandoHorasExtra ? (
+              <CargandoInline texto="Calculando horas extra..." />
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-left text-gray-500">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">Colaborador</th>
+                    <th className="px-4 py-2 font-medium text-right">Horas pendientes</th>
+                    <th className="px-4 py-2 font-medium text-right">Horas aprobadas</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filasHorasExtra.map((f) => (
+                    <tr key={f.id_usuario}>
+                      <td className="px-4 py-2">{f.colaborador}</td>
+                      <td
+                        className={`px-4 py-2 text-right whitespace-nowrap ${
+                          Number(f.horas_pendientes) > 0 ? "text-amber-600 font-medium" : "text-gray-400"
+                        }`}
+                      >
+                        {Number(f.horas_pendientes).toFixed(2)}
+                      </td>
+                      <td
+                        className={`px-4 py-2 text-right whitespace-nowrap ${
+                          Number(f.horas_aprobadas) > 0 ? "text-green-600 font-medium" : "text-gray-400"
+                        }`}
+                      >
+                        {Number(f.horas_aprobadas).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                  {buscoHorasExtra && filasHorasExtra.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-6 text-center text-gray-400">
+                        Sin horas extra pendientes ni aprobadas este mes
+                      </td>
+                    </tr>
+                  )}
+                  {!buscoHorasExtra && (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-6 text-center text-gray-400">
+                        Selecciona un proyecto y un mes, y genera el reporte
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       )}
 

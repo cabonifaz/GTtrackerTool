@@ -1,5 +1,5 @@
 import { executeProcedure } from "@/lib/db";
-import { HoraExtra, HoraExtraAdmin, SaldoCompensatorio } from "@/lib/types";
+import { HoraExtra, HoraExtraAdmin, ResumenHorasExtraRow, SaldoCompensatorio } from "@/lib/types";
 
 export function crearHoraExtra(
   idUsuario: number,
@@ -64,6 +64,20 @@ export function rechazarHoraExtra(
   modificadoPor: string
 ) {
   return executeProcedure("sp_hora_extra_rechazar", [idHoraExtra, motivoRechazo, idEmpresaActor, modificadoPor]);
+}
+
+export function resumenHorasExtraMensual(
+  idProyecto: number,
+  anio: number,
+  mes: number,
+  idEmpresaActor: number
+) {
+  return executeProcedure<ResumenHorasExtraRow>("sp_horas_extra_resumen_mensual", [
+    idProyecto,
+    anio,
+    mes,
+    idEmpresaActor,
+  ]);
 }
 
 export async function obtenerSaldoCompensatorio(idUsuario: number, idEmpresaActor: number) {
