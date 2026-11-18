@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   EstadoCierreFacturacion,
+  InstructorExternoPendiente,
   MaestroItem,
+  ProgramaExterno,
   Proyecto,
   ProyeccionRow,
   ReporteClasesPorGrupo,
@@ -12,6 +14,7 @@ import {
   ReporteDetalleRow,
   ReporteTalentoResponse,
   ReporteTareaRow,
+  ResultadoFilaImportacion,
   ResumenAvanceRow,
   ResumenHorasExtraRow,
   Usuario,
@@ -33,7 +36,16 @@ const MESES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
-type Vista = "detalle" | "por-tarea" | "costos" | "resumen" | "proyeccion" | "talento" | "horas-extra" | "clases";
+type Vista =
+  | "detalle"
+  | "por-tarea"
+  | "costos"
+  | "resumen"
+  | "proyeccion"
+  | "talento"
+  | "horas-extra"
+  | "entrenamiento"
+  | "clases";
 
 const SEMAFORO: Record<ResumenAvanceRow["semaforo"], { color: string; label: string }> = {
   VERDE: { color: "bg-green-500", label: "Al dia" },
@@ -94,6 +106,134 @@ export default function ReportesClient({
   const [filasHorasExtra, setFilasHorasExtra] = useState<ResumenHorasExtraRow[]>([]);
   const [cargandoHorasExtra, setCargandoHorasExtra] = useState(false);
   const [buscoHorasExtra, setBuscoHorasExtra] = useState(false);
+
+  // Importar horas dictadas desde "Control Programa Entrenamientos"
+  // (API externa, solo Admin)
+  const [programasExternos, setProgramasExternos] = useState<ProgramaExterno[]>([]);
+  const [cargandoProgramas, setCargandoProgramas] = useState(false);
+  const [entIdProyecto, setEntIdProyecto] = useState(idProyectoUnico);
+  const [entProgramId, setEntProgramId] = useState("");
+  const [entDesde, setEntDesde] = useState(fechaInicioInicial);
+  const [entHasta, setEntHasta] = useState(fechaFinInicial);
+  const [resultadosImportEnt, setResultadosImportEnt] = useState<ResultadoFilaImportacion[] | null>(null);
+  const [importandoEnt, setImportandoEnt] = useState(false);
+  const [instructoresPendientes, setInstructoresPendientes] = useState<InstructorExternoPendiente[]>([]);
+  const [cargandoPendientes, setCargandoPendientes] = useState(false);
+  const [relacionandoPendiente, setRelacionandoPendiente] = useState<number | null>(null);
+  const [mostrandoCrearPendiente, setMostrandoCrearPendiente] = useState<number | null>(null);
+  const [crearNombres, setCrearNombres] = useState("");
+  const [crearApellidos, setCrearApellidos] = useState("");
+  const [mensajeEntrenamiento, setMensajeEntrenamiento] = useState<string | null>(null);
+
+  function abrirCrearPendiente(p: InstructorExternoPendiente) {
+    const partes = p.nombre_externo.trim().split(/\s+/);
+    setCrearNombres(partes.slice(0, Math.ceil(partes.length / 2)).join(" ") || p.nombre_externo);
+    setCrearApellidos(partes.slice(Math.ceil(partes.length / 2)).join(" "));
+    setMostrandoCrearPendiente(p.id_instructor_externo);
+  }
+
+  async function cargarInstructoresPendientes() {
+    setCargandoPendientes(true);
+    try {
+      setInstructoresPendientes(await fetchJson<InstructorExternoPendiente[]>("/api/integraciones/entrenamiento/instructores-pendientes"));
+    } catch {
+      // No bloqueante: si falla, simplemente no se muestra la alerta.
+    }
+    setCargandoPendientes(false);
+  }
+
+  useEffect(() => {
+    if (esAdmin) cargarInstructoresPendientes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esAdmin]);
+
+  async function cargarProgramasExternos() {
+    setCargandoProgramas(true);
+    setError(null);
+    try {
+      setProgramasExternos(await fetchJson<ProgramaExterno[]>("/api/integraciones/entrenamiento/programas"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudieron cargar los programas de entrenamiento");
+    }
+    setCargandoProgramas(false);
+  }
+
+  async function importarHorasDictadasAccion() {
+    if (!entIdProyecto || !entProgramId) return;
+    setImportandoEnt(true);
+    setError(null);
+    setResultadosImportEnt(null);
+    try {
+      const res = await fetch("/api/integraciones/entrenamiento/importar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idProyecto: Number(entIdProyecto),
+          programId: Number(entProgramId),
+          from: entDesde,
+          to: entHasta,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setResultadosImportEnt(await res.json());
+      await cargarInstructoresPendientes();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo importar las horas dictadas");
+    }
+    setImportandoEnt(false);
+  }
+
+  async function relacionarInstructorPendiente(idInstructorExterno: number, idUsuario: number) {
+    setRelacionandoPendiente(idInstructorExterno);
+    setError(null);
+    setMensajeEntrenamiento(null);
+    try {
+      const res = await fetch(`/api/integraciones/entrenamiento/instructores/${idInstructorExterno}/relacionar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idUsuario }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      const data = await res.json();
+      setMensajeEntrenamiento(
+        `Relacionado -- se registraron ${data.reprocesadas} de ${data.totalPendientes} clase(s) pendiente(s).`
+      );
+      setMostrandoCrearPendiente(null);
+      await cargarInstructoresPendientes();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo relacionar el instructor");
+    }
+    setRelacionandoPendiente(null);
+  }
+
+  async function crearYRelacionarInstructor(
+    pendiente: InstructorExternoPendiente,
+    nombres: string,
+    apellidos: string
+  ) {
+    setRelacionandoPendiente(pendiente.id_instructor_externo);
+    setError(null);
+    setMensajeEntrenamiento(null);
+    try {
+      const res = await fetch("/api/usuarios/invitar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombres,
+          apellidos,
+          email: pendiente.email_externo,
+          codigoRol: "TALENTO",
+          idProyecto: entIdProyecto || null,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      const { idUsuario } = await res.json();
+      await relacionarInstructorPendiente(pendiente.id_instructor_externo, idUsuario);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo crear al talento");
+      setRelacionandoPendiente(null);
+    }
+  }
 
   // Resumen de avance + recordatorios (solo Admin)
   const [resumenIdProyecto, setResumenIdProyecto] = useState(idProyectoUnico);
@@ -742,6 +882,23 @@ export default function ReportesClient({
             }`}
           >
             Horas extra
+          </button>
+        )}
+        {esAdmin && (
+          <button
+            onClick={() => setVista("entrenamiento")}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
+              vista === "entrenamiento"
+                ? "border-[var(--color-primario)] text-[var(--color-primario)]"
+                : "border-transparent text-gray-500"
+            }`}
+          >
+            Horas dictadas
+            {instructoresPendientes.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-amber-500 text-white text-xs h-4 min-w-[16px] px-1">
+                {instructoresPendientes.length}
+              </span>
+            )}
           </button>
         )}
         {esAdmin && tieneClases && (
@@ -1979,6 +2136,242 @@ export default function ReportesClient({
                     <tr>
                       <td colSpan={3} className="px-4 py-6 text-center text-gray-400">
                         Selecciona un proyecto y un mes, y genera el reporte
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
+      {vista === "entrenamiento" && esAdmin && (
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500">
+            Trae de &quot;Control Programa Entrenamientos&quot; las clases ya DICTADAS (temas completados) de un
+            programa, y las registra como horas trabajadas del profesor en Qronos para poder pagarlas. Si una
+            clase ya se importo antes, no se duplica.
+          </p>
+
+          {mensajeEntrenamiento && (
+            <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">
+              {mensajeEntrenamiento}
+            </p>
+          )}
+
+          {cargandoPendientes ? null : instructoresPendientes.length > 0 && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 space-y-3">
+              <p className="text-sm font-medium text-amber-800">
+                ⚠️ {instructoresPendientes.length} profesor{instructoresPendientes.length === 1 ? "" : "es"} de
+                Control Programa Entrenamientos sin relacionar con un talento de Qronos
+              </p>
+              <ul className="space-y-3">
+                {instructoresPendientes.map((p) => (
+                  <li key={p.id_instructor_externo} className="text-sm border-t border-amber-200 pt-2 first:border-0 first:pt-0">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-amber-800">
+                        {p.nombre_externo} <span className="text-amber-600">· {p.email_externo}</span>
+                        {p.clases_pendientes > 0 && (
+                          <span className="text-amber-500"> · {p.clases_pendientes} clase(s) pendiente(s)</span>
+                        )}
+                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select
+                          defaultValue=""
+                          disabled={relacionandoPendiente === p.id_instructor_externo}
+                          onChange={(e) => {
+                            const idUsuario = e.target.value;
+                            e.target.value = "";
+                            if (idUsuario) relacionarInstructorPendiente(p.id_instructor_externo, Number(idUsuario));
+                          }}
+                          className="rounded-md border border-amber-300 bg-white px-2 py-1 text-xs"
+                        >
+                          <option value="">Relacionar con talento existente...</option>
+                          {usuarios.map((u) => (
+                            <option key={u.id_usuario} value={u.id_usuario}>
+                              {u.nombres} {u.apellidos}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            mostrandoCrearPendiente === p.id_instructor_externo
+                              ? setMostrandoCrearPendiente(null)
+                              : abrirCrearPendiente(p)
+                          }
+                          disabled={relacionandoPendiente === p.id_instructor_externo}
+                          className="rounded-md border border-amber-300 bg-white text-amber-700 text-xs font-medium px-2.5 py-1 hover:bg-amber-100 disabled:opacity-50"
+                        >
+                          {relacionandoPendiente === p.id_instructor_externo && <Spinner className="h-3 w-3" />}
+                          Crear e invitar
+                        </button>
+                      </div>
+                    </div>
+                    {mostrandoCrearPendiente === p.id_instructor_externo && (
+                      <div className="mt-2 flex flex-wrap items-end gap-2 bg-white rounded-md border border-amber-200 p-2">
+                        <input
+                          value={crearNombres}
+                          onChange={(e) => setCrearNombres(e.target.value)}
+                          placeholder="Nombres"
+                          className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+                        />
+                        <input
+                          value={crearApellidos}
+                          onChange={(e) => setCrearApellidos(e.target.value)}
+                          placeholder="Apellidos"
+                          className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => crearYRelacionarInstructor(p, crearNombres, crearApellidos)}
+                          disabled={!crearNombres || !crearApellidos || relacionandoPendiente === p.id_instructor_externo}
+                          className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-primario)] text-white text-xs font-medium px-3 py-1 disabled:opacity-50"
+                        >
+                          {relacionandoPendiente === p.id_instructor_externo && <Spinner className="h-3 w-3" />}
+                          Confirmar e invitar
+                        </button>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="rounded-lg border border-gray-200 bg-white p-4 flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Proyecto en Qronos</label>
+              <select
+                value={entIdProyecto}
+                onChange={(e) => setEntIdProyecto(e.target.value)}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+              >
+                <option value="">Selecciona un proyecto</option>
+                {proyectos
+                  .filter((p) => p.codigo_tipo_proyecto === "CRONOMETRO")
+                  .map((p) => (
+                    <option key={p.id_proyecto} value={p.id_proyecto}>
+                      {p.nombre}
+                      {p.cliente ? ` (${p.cliente})` : ""}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div className="space-y-1 min-w-[220px]">
+              <label className="text-sm font-medium">Programa de entrenamiento</label>
+              {programasExternos.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={cargarProgramasExternos}
+                  disabled={cargandoProgramas}
+                  className="inline-flex items-center gap-2 rounded-md border border-gray-300 text-sm px-3 py-2 disabled:opacity-50"
+                >
+                  {cargandoProgramas && <Spinner className="h-3 w-3" />}
+                  Cargar programas...
+                </button>
+              ) : (
+                <select
+                  value={entProgramId}
+                  onChange={(e) => setEntProgramId(e.target.value)}
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                >
+                  <option value="">Selecciona un programa</option>
+                  {programasExternos.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                      {p.cohort ? ` (${p.cohort})` : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Desde</label>
+              <input
+                type="date"
+                value={entDesde}
+                onChange={(e) => setEntDesde(e.target.value)}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Hasta</label>
+              <input
+                type="date"
+                value={entHasta}
+                onChange={(e) => setEntHasta(e.target.value)}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <button
+              onClick={importarHorasDictadasAccion}
+              disabled={importandoEnt || !entIdProyecto || !entProgramId}
+              className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primario)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+            >
+              {importandoEnt && <Spinner />}
+              Importar horas dictadas
+            </button>
+          </div>
+
+          <div className="rounded-lg border border-gray-200 bg-white overflow-x-auto">
+            {importandoEnt ? (
+              <CargandoInline texto="Importando horas dictadas..." />
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-left text-gray-500">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">Fecha</th>
+                    <th className="px-4 py-2 font-medium">Profesor</th>
+                    <th className="px-4 py-2 font-medium">Tema</th>
+                    <th className="px-4 py-2 font-medium">Resultado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {(resultadosImportEnt ?? []).map((r, i) => (
+                    <tr key={i}>
+                      <td className="px-4 py-2 whitespace-nowrap">{r.fecha}</td>
+                      <td className="px-4 py-2">
+                        {r.profesor}
+                        <span className="text-gray-400"> · {r.email}</span>
+                      </td>
+                      <td className="px-4 py-2">{r.tema}</td>
+                      <td className="px-4 py-2">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                            r.estado === "IMPORTADO"
+                              ? "bg-green-100 text-green-700"
+                              : r.estado === "YA_IMPORTADO"
+                                ? "bg-gray-100 text-gray-500"
+                                : r.estado === "SIN_EMPAREJAR"
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-red-100 text-red-700"
+                          }`}
+                          title={r.mensaje}
+                        >
+                          {r.estado === "IMPORTADO"
+                            ? "Importado"
+                            : r.estado === "YA_IMPORTADO"
+                              ? "Ya importado"
+                              : r.estado === "SIN_EMPAREJAR"
+                                ? "Sin emparejar"
+                                : "Error"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {resultadosImportEnt !== null && resultadosImportEnt.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-6 text-center text-gray-400">
+                        Sin clases dictadas en ese rango
+                      </td>
+                    </tr>
+                  )}
+                  {resultadosImportEnt === null && (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-6 text-center text-gray-400">
+                        Elige proyecto, programa y rango de fechas, y presiona Importar
                       </td>
                     </tr>
                   )}

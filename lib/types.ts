@@ -576,6 +576,36 @@ export interface ResumenHorasExtraRow {
   horas_aprobadas: number;
 }
 
+export interface ProgramaExterno {
+  id: number;
+  name: string;
+  cohort: string | null;
+  startsOn: string | null;
+  endsOn: string | null;
+  status: string;
+  tenantId: number;
+  tenantName: string;
+}
+
+export interface InstructorExternoPendiente {
+  id_instructor_externo: number;
+  email_externo: string;
+  nombre_externo: string;
+  fecha_creacion: string;
+  clases_pendientes: number;
+}
+
+export type EstadoImportacionClase = "IMPORTADO" | "YA_IMPORTADO" | "SIN_EMPAREJAR" | "ERROR";
+
+export interface ResultadoFilaImportacion {
+  fecha: string;
+  profesor: string;
+  email: string;
+  tema: string;
+  estado: EstadoImportacionClase;
+  mensaje?: string;
+}
+
 export interface ImportarFilaResultado {
   fila: number;
   ok: boolean;
